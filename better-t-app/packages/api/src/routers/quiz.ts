@@ -8,6 +8,110 @@ import { and, desc, eq, exists, inArray, isNotNull, like, sql } from "drizzle-or
 import OpenAI from "openai";
 import { z } from "zod";
 
+// ──── AI question refinement helper ──────────────────────────────────────────
+
+async function refineQuestionWithAi(
+  currentQuestion: { sentence: string; answer: string; explanation: string; choices: string[] },
+  sourceContent: string,
+  userPrompt: string,
+): Promise<{ sentence: string; answer: string; explanation: string; choices: string[] }> {
+  const openai = new OpenAI({
+    apiKey: env.SAKURA_AI_API_KEY,
+    baseURL: env.SAKURA_AI_API_BASE_URL,
+  });
+
+  const exampleJson = JSON.stringify(
+    {
+      sentence: "Goのコンパイラは___と呼ばれる最適化でインデックスチェックを除去する。",
+      answer: "BCE",
+      explanation: "BCEはBounds Check Eliminationの略で、コンパイラが安全と証明できたアクセスのチェックを省略する。",
+      choices: ["BCE", "SSA", "GC", "CSE"],
+    },
+    null,
+    2,
+  );
+
+  const systemPrompt = `あなたはJSONデータ生成プログラムです。
+既存の穴埋めクイズをユーザーの指示に従って修正し、必ず有効なJSONのみを出力してください。
+説明文、前置き、コードブロック記号(バッククォート)は一切不要です。
+最初の文字は必ず「{」にしてください。
+
+出力するJSONの構造（この形式を厳守すること）:
+${exampleJson}
+
+ルール:
+- sentenceには必ず「___」を1つ含める
+- choices[0]が正解、choices[1〜3]が誤答（計4個）
+- choicesの誤答は本文中の別の語句から選ぶ
+- 正解は本文から直接引用する`;
+
+  const userMsg = `以下の既存問題をユーザーの指示に従って修正してください。
+
+## 元の問題
+${JSON.stringify(currentQuestion, null, 2)}
+
+## ソーステキスト（参考）
+${sourceContent.slice(0, 3000)}
+
+## 修正指示
+${userPrompt}
+
+出力はJSONのみ。`;
+
+  const completion = await openai.chat.completions
+    .create({
+      model: env.SAKURA_AI_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMsg },
+        { role: "assistant", content: "{" },
+      ],
+      temperature: 0.4,
+    })
+    .catch((err) => {
+      console.error("[quiz.aiRefineQuestion] OpenAI API error:", err?.message ?? err);
+      throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "AIによる修正に失敗しました" });
+    });
+
+  const rawContent = completion.choices[0]?.message?.content ?? "";
+  const prependBrace = !rawContent.trimStart().startsWith("{");
+  const candidate = prependBrace ? `{${rawContent}` : rawContent;
+
+  const jsonMatch =
+    candidate.match(/```json\s*([\s\S]*?)```/) ??
+    candidate.match(/```\s*([\s\S]*?)```/) ??
+    candidate.match(/(\{[\s\S]*\})/);
+  const jsonText = jsonMatch?.[1]?.trim() ?? candidate.trim();
+
+  let refined: { sentence: string; answer: string; explanation: string; choices: string[] };
+  try {
+    refined = JSON.parse(jsonText);
+  } catch {
+    console.error("[quiz.aiRefineQuestion] JSON parse error. raw content:", rawContent.slice(0, 500));
+    throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "AIレスポンスの解析に失敗しました" });
+  }
+
+  if (
+    typeof refined.sentence !== "string" ||
+    !refined.sentence.includes("___") ||
+    typeof refined.answer !== "string" ||
+    !refined.answer ||
+    !Array.isArray(refined.choices) ||
+    refined.choices.length < 2
+  ) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR", {
+      message: "AIが正しい形式の問題を生成できませんでした",
+    });
+  }
+
+  return {
+    sentence: refined.sentence,
+    answer: refined.answer,
+    explanation: refined.explanation ?? "",
+    choices: refined.choices.slice(0, 4) as string[],
+  };
+}
+
 import { protectedProcedure } from "../index";
 
 // ──── helpers ────────────────────────────────────────────
@@ -508,6 +612,174 @@ export const quizRouter = {
             isCorrect: c.isCorrect,
             orderIndex: c.orderIndex,
           })),
+        })),
+      };
+    }),
+
+  /** 問題を手動編集する */
+  updateQuestion: protectedProcedure
+    .input(
+      z.object({
+        questionId: z.string(),
+        sentence: z
+          .string()
+          .min(1, "問題文を入力してください")
+          .max(500)
+          .refine((s) => s.includes("___"), { message: '問題文に「___」を含めてください' }),
+        answer: z.string().min(1, "答えを入力してください").max(200),
+        explanation: z.string().min(1, "解説を入力してください").max(1000),
+        choices: z
+          .array(
+            z.object({
+              id: z.string(),
+              text: z.string().min(1, "選択肢を入力してください").max(200),
+              isCorrect: z.boolean(),
+            }),
+          )
+          .min(2, "選択肢は2つ以上必要です")
+          .max(4, "選択肢は4つまでです"),
+      }),
+    )
+    .handler(async ({ input, context }) => {
+      const userId = context.session.user.id;
+
+      // 正解は1つだけ
+      const correctCount = input.choices.filter((c) => c.isCorrect).length;
+      if (correctCount !== 1) {
+        throw new ORPCError("BAD_REQUEST", { message: "正解は1つだけ選択してください" });
+      }
+
+      // 問題存在確認 + オーナーシップ確認
+      const questionRow = await db.query.quizQuestion.findFirst({
+        where: eq(quizQuestion.id, input.questionId),
+        with: { quiz: true },
+      });
+
+      if (!questionRow || questionRow.quiz.userId !== userId) {
+        throw new ORPCError("NOT_FOUND", { message: "問題が見つかりません" });
+      }
+
+      // 問題文・答え・解説を更新
+      await db
+        .update(quizQuestion)
+        .set({
+          sentence: input.sentence,
+          answer: input.answer,
+          explanation: input.explanation,
+        })
+        .where(eq(quizQuestion.id, input.questionId));
+
+      // 各選択肢をIDで更新（選択肢はこの問題に属することも確認）
+      for (const choice of input.choices) {
+        await db
+          .update(quizChoice)
+          .set({ text: choice.text, isCorrect: choice.isCorrect })
+          .where(
+            and(
+              eq(quizChoice.id, choice.id),
+              eq(quizChoice.questionId, input.questionId),
+            ),
+          );
+      }
+
+      return { success: true as const };
+    }),
+
+  /** AIプロンプトによる問題修正 */
+  aiRefineQuestion: protectedProcedure
+    .input(
+      z.object({
+        questionId: z.string(),
+        prompt: z
+          .string()
+          .min(1, "修正指示を入力してください")
+          .max(500, "修正指示は500文字以内にしてください"),
+      }),
+    )
+    .handler(async ({ input, context }) => {
+      const userId = context.session.user.id;
+
+      // 問題存在確認 + オーナーシップ確認
+      const questionRow = await db.query.quizQuestion.findFirst({
+        where: eq(quizQuestion.id, input.questionId),
+        with: {
+          quiz: true,
+          choices: { orderBy: (c, { asc }) => [asc(c.orderIndex)] },
+        },
+      });
+
+      if (!questionRow || questionRow.quiz.userId !== userId) {
+        throw new ORPCError("NOT_FOUND", { message: "問題が見つかりません" });
+      }
+
+      // AI で問題を修正
+      const currentQuestion = {
+        sentence: questionRow.sentence,
+        answer: questionRow.answer,
+        explanation: questionRow.explanation,
+        choices: questionRow.choices.map((c) => c.text),
+      };
+
+      const refined = await refineQuestionWithAi(
+        currentQuestion,
+        questionRow.quiz.sourceContent,
+        input.prompt,
+      );
+
+      // 問題文・答え・解説を更新
+      await db
+        .update(quizQuestion)
+        .set({
+          sentence: refined.sentence,
+          answer: refined.answer,
+          explanation: refined.explanation,
+        })
+        .where(eq(quizQuestion.id, input.questionId));
+
+      // 既存選択肢を全削除して再挿入（AIは新しい選択肢を生成するため）
+      await db.delete(quizChoice).where(eq(quizChoice.questionId, input.questionId));
+
+      // choices[0] が正解、シャッフルして挿入
+      const correctChoice = refined.choices[0];
+      const shuffledChoices = [...refined.choices] as string[];
+      for (let j = shuffledChoices.length - 1; j > 0; j--) {
+        const k = Math.floor(Math.random() * (j + 1));
+        const tmp = shuffledChoices[j];
+        shuffledChoices[j] = shuffledChoices[k] ?? tmp ?? "";
+        shuffledChoices[k] = tmp ?? "";
+      }
+
+      for (let ci = 0; ci < shuffledChoices.length; ci++) {
+        const choiceText = shuffledChoices[ci] ?? "";
+        await db.insert(quizChoice).values({
+          id: generateId(),
+          questionId: input.questionId,
+          text: choiceText,
+          isCorrect: choiceText === correctChoice,
+          orderIndex: ci,
+        });
+      }
+
+      // 更新後の問題を返す
+      const updatedRow = await db.query.quizQuestion.findFirst({
+        where: eq(quizQuestion.id, input.questionId),
+        with: { choices: { orderBy: (c, { asc }) => [asc(c.orderIndex)] } },
+      });
+
+      if (!updatedRow) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "問題の更新後の取得に失敗しました" });
+      }
+
+      return {
+        id: updatedRow.id,
+        sentence: updatedRow.sentence,
+        answer: updatedRow.answer,
+        explanation: updatedRow.explanation,
+        choices: updatedRow.choices.map((c) => ({
+          id: c.id,
+          text: c.text,
+          isCorrect: c.isCorrect,
+          orderIndex: c.orderIndex,
         })),
       };
     }),
