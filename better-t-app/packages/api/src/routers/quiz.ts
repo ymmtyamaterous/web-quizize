@@ -1,10 +1,10 @@
 import { db } from "@better-t-app/db";
-import { quiz, quizChoice, quizQuestion } from "@better-t-app/db/schema/quiz";
+import { quiz, quizChoice, quizQuestion, quizTag, tag } from "@better-t-app/db/schema/quiz";
 import { quizAttempt } from "@better-t-app/db/schema/quizAttempt";
 import { env } from "@better-t-app/env/server";
 import { ORPCError } from "@orpc/server";
 import * as cheerio from "cheerio";
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, exists, inArray, isNotNull, like, sql } from "drizzle-orm";
 import OpenAI from "openai";
 import { z } from "zod";
 
@@ -250,12 +250,43 @@ export const quizRouter = {
       z.object({
         page: z.number().int().min(1).default(1),
         limit: z.number().int().min(1).max(50).default(20),
+        search: z.string().optional(),
+        tagId: z.string().optional(),
+        isFavorite: z.boolean().optional(),
+        difficulty: z.enum(["easy", "medium", "hard"]).optional(),
       }),
     )
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
-      const { page, limit } = input;
+      const { page, limit, search, tagId, isFavorite, difficulty } = input;
       const offset = (page - 1) * limit;
+
+      // フィルタ条件を構築
+      const conditions = [eq(quiz.userId, userId)];
+      if (isFavorite !== undefined) {
+        conditions.push(eq(quiz.isFavorite, isFavorite));
+      }
+      if (difficulty) {
+        conditions.push(eq(quiz.difficulty, difficulty));
+      }
+      if (search) {
+        conditions.push(like(quiz.sourceTitle, `%${search}%`));
+      }
+      const whereClause = and(...conditions);
+
+      // タグフィルタがある場合は quizTag を使ったサブクエリ
+      const tagFilterCondition = tagId
+        ? exists(
+            db
+              .select({ one: sql`1` })
+              .from(quizTag)
+              .where(and(eq(quizTag.quizId, quiz.id), eq(quizTag.tagId, tagId))),
+          )
+        : undefined;
+
+      const finalWhere = tagFilterCondition
+        ? and(whereClause, tagFilterCondition)
+        : whereClause;
 
       const [quizzes, [countRow]] = await Promise.all([
         db
@@ -266,6 +297,8 @@ export const quizRouter = {
             difficulty: quiz.difficulty,
             questionCount: quiz.questionCount,
             status: quiz.status,
+            isFavorite: quiz.isFavorite,
+            memo: quiz.memo,
             createdAt: quiz.createdAt,
             lastAttemptAt: sql<number | null>`max(${quizAttempt.completedAt})`,
             bestScore: sql<number | null>`max(${quizAttempt.score})`,
@@ -280,7 +313,7 @@ export const quizRouter = {
               isNotNull(quizAttempt.completedAt),
             ),
           )
-          .where(eq(quiz.userId, userId))
+          .where(finalWhere)
           .groupBy(quiz.id)
           .orderBy(desc(quiz.createdAt))
           .limit(limit)
@@ -288,8 +321,32 @@ export const quizRouter = {
         db
           .select({ count: sql<number>`count(*)` })
           .from(quiz)
-          .where(eq(quiz.userId, userId)),
+          .where(finalWhere),
       ]);
+
+      // タグ情報を一括取得
+      const quizIds = quizzes.map((q) => q.id);
+      const quizTagRows =
+        quizIds.length > 0
+          ? await db
+              .select({
+                quizId: quizTag.quizId,
+                tagId: tag.id,
+                tagName: tag.name,
+                tagColor: tag.color,
+              })
+              .from(quizTag)
+              .innerJoin(tag, eq(quizTag.tagId, tag.id))
+              .where(inArray(quizTag.quizId, quizIds))
+          : [];
+
+      const tagsByQuizId = quizTagRows.reduce<
+        Record<string, { id: string; name: string; color: string }[]>
+      >((acc, row) => {
+        if (!acc[row.quizId]) acc[row.quizId] = [];
+        acc[row.quizId]!.push({ id: row.tagId, name: row.tagName, color: row.tagColor });
+        return acc;
+      }, {});
 
       const total = countRow?.count ?? 0;
 
@@ -301,10 +358,13 @@ export const quizRouter = {
           difficulty: q.difficulty,
           questionCount: q.questionCount,
           status: q.status,
+          isFavorite: q.isFavorite,
+          memo: q.memo,
           createdAt: q.createdAt?.toISOString() ?? "",
           lastAttemptAt: q.lastAttemptAt ? new Date(Number(q.lastAttemptAt)).toISOString() : null,
           bestScore: q.bestScore ?? null,
           attemptCount: q.attemptCount ?? 0,
+          tags: tagsByQuizId[q.id] ?? [],
         })),
         total,
         page,
@@ -354,6 +414,38 @@ export const quizRouter = {
           })),
         })),
       };
+    }),
+
+  /** お気に入り・メモを更新 */
+  update: protectedProcedure
+    .input(
+      z.object({
+        quizId: z.string(),
+        isFavorite: z.boolean().optional(),
+        memo: z.string().max(500, "メモは500文字以内にしてください").optional(),
+      }),
+    )
+    .handler(async ({ input, context }) => {
+      const userId = context.session.user.id;
+
+      const quizRow = await db.query.quiz.findFirst({
+        where: and(eq(quiz.id, input.quizId), eq(quiz.userId, userId)),
+      });
+
+      if (!quizRow) {
+        throw new ORPCError("NOT_FOUND", { message: "クイズが見つかりません" });
+      }
+
+      const updateData: Partial<typeof quiz.$inferInsert> = {};
+      if (input.isFavorite !== undefined) updateData.isFavorite = input.isFavorite;
+      if (input.memo !== undefined) updateData.memo = input.memo;
+
+      await db
+        .update(quiz)
+        .set(updateData)
+        .where(and(eq(quiz.id, input.quizId), eq(quiz.userId, userId)));
+
+      return { success: true as const };
     }),
 
   delete: protectedProcedure

@@ -9,7 +9,9 @@
       "default": "./src/*.ts"
     }
   },
-  "scripts": {},
+  "scripts": {
+    "test": "bun test"
+  },
   "dependencies": {
     "@better-t-app/auth": "workspace:*",
     "@better-t-app/db": "workspace:*",

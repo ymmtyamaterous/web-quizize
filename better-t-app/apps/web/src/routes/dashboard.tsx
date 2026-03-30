@@ -1,6 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { BookOpen, Clock, Flame, LogOut, Target, Trophy } from "lucide-react";
+import {
+  BookOpen,
+  Clock,
+  Flame,
+  Heart,
+  LogOut,
+  Plus,
+  Search,
+  StickyNote,
+  Tag,
+  Target,
+  Trash2,
+  Trophy,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -21,19 +35,364 @@ export const Route = createFileRoute("/dashboard")({
 const DIFFICULTY_LABELS = { easy: "初級", medium: "中級", hard: "上級" } as const;
 const DIFFICULTY_COLORS = { easy: "#c8ff00", medium: "#00e5ff", hard: "#ff4d6d" } as const;
 
+type QuizItem = {
+  id: string;
+  sourceUrl: string;
+  sourceTitle: string;
+  difficulty: "easy" | "medium" | "hard";
+  questionCount: number;
+  status: string;
+  isFavorite: boolean;
+  memo: string;
+  createdAt: string;
+  lastAttemptAt: string | null;
+  bestScore: number | null;
+  attemptCount: number;
+  tags: { id: string; name: string; color: string }[];
+};
+
+// ── TagBadge ──────────────────────────────────────────────────────────────
+function TagBadge({
+  tag,
+  onRemove,
+}: {
+  tag: { id: string; name: string; color: string };
+  onRemove?: () => void;
+}) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "2px 8px",
+        borderRadius: 2,
+        fontSize: "0.72rem",
+        fontWeight: 600,
+        background: `${tag.color}22`,
+        color: tag.color,
+        border: `1px solid ${tag.color}55`,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {tag.name}
+      {onRemove && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          style={{ background: "none", border: "none", cursor: "pointer", color: tag.color, padding: 0, lineHeight: 1, display: "flex" }}
+        >
+          <X size={10} />
+        </button>
+      )}
+    </span>
+  );
+}
+
+// ── TagSelector ───────────────────────────────────────────────────────────
+function TagSelector({
+  quizId: _quizId,
+  attachedTags,
+  allTags,
+  onAttach,
+  onDetach,
+  onCreateTag,
+}: {
+  quizId: string;
+  attachedTags: { id: string; name: string; color: string }[];
+  allTags: { id: string; name: string; color: string }[];
+  onAttach: (tagId: string) => void;
+  onDetach: (tagId: string) => void;
+  onCreateTag: (name: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
+
+  const attachedIds = new Set(attachedTags.map((t) => t.id));
+  const availableTags = allTags.filter((t) => !attachedIds.has(t.id));
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        style={{
+          background: "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          color: "#6b6b80",
+          padding: "4px 8px",
+          cursor: "pointer",
+          fontSize: "0.75rem",
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          borderRadius: 2,
+        }}
+        title="タグを管理"
+      >
+        <Tag size={12} />
+        タグ
+      </button>
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            zIndex: 100,
+            background: "#1a1a26",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 4,
+            padding: 12,
+            minWidth: 200,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* 付与済みタグ */}
+          {attachedTags.length > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: "0.7rem", color: "#6b6b80", marginBottom: 4 }}>付与中</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                {attachedTags.map((t) => (
+                  <TagBadge key={t.id} tag={t} onRemove={() => onDetach(t.id)} />
+                ))}
+              </div>
+            </div>
+          )}
+          {/* 追加可能なタグ */}
+          {availableTags.length > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: "0.7rem", color: "#6b6b80", marginBottom: 4 }}>追加する</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                {availableTags.map((t) => (
+                  <button
+                    type="button"
+                    key={t.id}
+                    onClick={() => onAttach(t.id)}
+                    style={{
+                      background: `${t.color}22`,
+                      border: `1px solid ${t.color}55`,
+                      color: t.color,
+                      padding: "2px 8px",
+                      borderRadius: 2,
+                      fontSize: "0.72rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    + {t.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* 新規タグ作成 */}
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)", paddingTop: 8 }}>
+            <div style={{ fontSize: "0.7rem", color: "#6b6b80", marginBottom: 4 }}>新しいタグを作成</div>
+            <div style={{ display: "flex", gap: 4 }}>
+              <input
+                type="text"
+                value={newTagName}
+                onChange={(e) => setNewTagName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newTagName.trim()) {
+                    onCreateTag(newTagName.trim());
+                    setNewTagName("");
+                  }
+                }}
+                placeholder="タグ名..."
+                style={{
+                  flex: 1,
+                  background: "#111118",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  color: "#f0f0f5",
+                  padding: "4px 8px",
+                  fontSize: "0.8rem",
+                  borderRadius: 2,
+                  outline: "none",
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (newTagName.trim()) {
+                    onCreateTag(newTagName.trim());
+                    setNewTagName("");
+                  }
+                }}
+                style={{
+                  background: "#c8ff00",
+                  color: "#0a0a0f",
+                  border: "none",
+                  padding: "4px 8px",
+                  cursor: "pointer",
+                  borderRadius: 2,
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                <Plus size={12} />
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            style={{ marginTop: 8, width: "100%", background: "none", border: "none", color: "#6b6b80", fontSize: "0.75rem", cursor: "pointer", padding: "4px 0" }}
+          >
+            閉じる
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── MemoEditor ────────────────────────────────────────────────────────────
+function MemoEditor({
+  quizId: _quizId,
+  initialMemo,
+  onSave,
+}: {
+  quizId: string;
+  initialMemo: string;
+  onSave: (memo: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(initialMemo);
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setValue(initialMemo);
+          setOpen((v) => !v);
+        }}
+        style={{
+          background: initialMemo ? "rgba(200,255,0,0.08)" : "rgba(255,255,255,0.05)",
+          border: `1px solid ${initialMemo ? "rgba(200,255,0,0.3)" : "rgba(255,255,255,0.1)"}`,
+          color: initialMemo ? "#c8ff00" : "#6b6b80",
+          padding: "4px 8px",
+          cursor: "pointer",
+          fontSize: "0.75rem",
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          borderRadius: 2,
+        }}
+        title="メモを編集"
+      >
+        <StickyNote size={12} />
+        メモ
+      </button>
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            right: 0,
+            zIndex: 100,
+            background: "#1a1a26",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 4,
+            padding: 12,
+            width: 280,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={{ fontSize: "0.7rem", color: "#6b6b80", marginBottom: 6 }}>メモ（最大500文字）</div>
+          <textarea
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            maxLength={500}
+            rows={4}
+            placeholder="学習ポイント、気づきなどを記録..."
+            style={{
+              width: "100%",
+              background: "#111118",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: "#f0f0f5",
+              padding: "8px",
+              fontSize: "0.82rem",
+              borderRadius: 2,
+              resize: "vertical",
+              outline: "none",
+              boxSizing: "border-box",
+              fontFamily: "'Noto Sans JP', sans-serif",
+            }}
+          />
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "none", color: "#6b6b80", padding: "6px", cursor: "pointer", borderRadius: 2, fontSize: "0.8rem" }}
+            >
+              キャンセル
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onSave(value);
+                setOpen(false);
+              }}
+              style={{ flex: 1, background: "#c8ff00", border: "none", color: "#0a0a0f", padding: "6px", cursor: "pointer", borderRadius: 2, fontSize: "0.8rem", fontWeight: 700 }}
+            >
+              保存
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── DashboardPage ─────────────────────────────────────────────────────────
 function DashboardPage() {
   const { session } = Route.useRouteContext();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  // ── 生成フォーム
   const [url, setUrl] = useState("");
   const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
   const [questionCount, setQuestionCount] = useState(5);
+
+  // ── フィルタ状態
+  const [search, setSearch] = useState("");
+  const [filterTagId, setFilterTagId] = useState<string | undefined>(undefined);
+  const [filterFavorite, setFilterFavorite] = useState<boolean | undefined>(undefined);
+  const [filterDifficulty, setFilterDifficulty] = useState<"easy" | "medium" | "hard" | undefined>(undefined);
+
+  // ── 削除確認
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
+  // ── クエリ
   const statsQuery = useQuery(orpc.stats.summary.queryOptions());
-  const quizListQuery = useQuery(orpc.quiz.list.queryOptions({ input: { page: 1, limit: 20 } }));
+  const tagListQuery = useQuery(orpc.tag.list.queryOptions());
+  const quizListQuery = useQuery(
+    orpc.quiz.list.queryOptions({
+      input: {
+        page: 1,
+        limit: 50,
+        search: search || undefined,
+        tagId: filterTagId,
+        isFavorite: filterFavorite,
+        difficulty: filterDifficulty,
+      },
+    }),
+  );
 
+  // ── ミューテーション
   const deleteMutation = useMutation({
     ...orpc.quiz.delete.mutationOptions(),
     onSuccess: () => {
@@ -45,15 +404,66 @@ function DashboardPage() {
     onError: () => toast.error("削除に失敗しました"),
   });
 
+  const updateMutation = useMutation({
+    ...orpc.quiz.update.mutationOptions(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: orpc.quiz.list.key() }),
+    onError: () => toast.error("更新に失敗しました"),
+  });
+
+  const createTagMutation = useMutation({
+    ...orpc.tag.create.mutationOptions(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: orpc.tag.list.key() }),
+    onError: (err: Error) => toast.error(err.message ?? "タグの作成に失敗しました"),
+  });
+
+  const attachTagMutation = useMutation({
+    ...orpc.tag.attachToQuiz.mutationOptions(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: orpc.quiz.list.key() }),
+    onError: () => toast.error("タグの付与に失敗しました"),
+  });
+
+  const detachTagMutation = useMutation({
+    ...orpc.tag.detachFromQuiz.mutationOptions(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: orpc.quiz.list.key() }),
+    onError: () => toast.error("タグの解除に失敗しました"),
+  });
+
+  // ── ハンドラ
   const handleGenerate = () => {
     if (!url.trim()) {
       toast.error("URLを入力してください");
       return;
     }
-    navigate({
-      to: "/quiz/generating",
-      search: { url, difficulty, questionCount },
-    });
+    navigate({ to: "/quiz/generating", search: { url, difficulty, questionCount } });
+  };
+
+  const handleToggleFavorite = (q: QuizItem) => {
+    updateMutation.mutate(
+      { quizId: q.id, isFavorite: !q.isFavorite },
+      {
+        onSuccess: () =>
+          toast.success(q.isFavorite ? "お気に入りを解除しました" : "お気に入りに追加しました"),
+      },
+    );
+  };
+
+  const handleSaveMemo = (quizId: string, memo: string) => {
+    updateMutation.mutate(
+      { quizId, memo },
+      { onSuccess: () => toast.success("メモを保存しました") },
+    );
+  };
+
+  const handleCreateTagAndAttach = (quizId: string, name: string) => {
+    createTagMutation.mutate(
+      { name },
+      {
+        onSuccess: (data) => {
+          attachTagMutation.mutate({ quizId, tagId: data.id });
+          toast.success(`タグ「${name}」を作成して付与しました`);
+        },
+      },
+    );
   };
 
   const formatTime = (seconds: number) => {
@@ -63,6 +473,9 @@ function DashboardPage() {
     if (m > 0) return `${m}分`;
     return `${seconds}秒`;
   };
+
+  const allTags = tagListQuery.data ?? [];
+  const hasActiveFilter = search || filterTagId || filterFavorite !== undefined || filterDifficulty;
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-[#f0f0f5]" style={{ fontFamily: "'Noto Sans JP', sans-serif" }}>
@@ -145,72 +558,217 @@ function DashboardPage() {
 
         {/* QUIZ LIST */}
         <div>
-          <h2 style={{ fontFamily: "Syne, sans-serif", fontWeight: 800, fontSize: "1.1rem", marginBottom: 16, letterSpacing: "-0.01em", color: "#6b6b80" }}>生成済みクイズ</h2>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
+            <h2 style={{ fontFamily: "Syne, sans-serif", fontWeight: 800, fontSize: "1.1rem", letterSpacing: "-0.01em", color: "#6b6b80", margin: 0 }}>生成済みクイズ</h2>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              {/* テキスト検索 */}
+              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                <Search size={14} style={{ position: "absolute", left: 10, color: "#6b6b80", pointerEvents: "none" }} />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="タイトルで検索..."
+                  style={{
+                    background: "#111118",
+                    border: "1px solid rgba(255,255,255,0.07)",
+                    color: "#f0f0f5",
+                    padding: "7px 12px 7px 30px",
+                    fontSize: "0.82rem",
+                    outline: "none",
+                    width: 180,
+                    fontFamily: "'Noto Sans JP', sans-serif",
+                  }}
+                />
+              </div>
+
+              {/* タグフィルタ */}
+              <select
+                value={filterTagId ?? ""}
+                onChange={(e) => setFilterTagId(e.target.value || undefined)}
+                style={{ background: "#111118", border: "1px solid rgba(255,255,255,0.07)", color: filterTagId ? "#c8ff00" : "#6b6b80", padding: "7px 12px", fontSize: "0.82rem", cursor: "pointer" }}
+              >
+                <option value="">すべてのタグ</option>
+                {allTags.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+
+              {/* 難易度フィルタ */}
+              <select
+                value={filterDifficulty ?? ""}
+                onChange={(e) => setFilterDifficulty((e.target.value as "easy" | "medium" | "hard") || undefined)}
+                style={{ background: "#111118", border: "1px solid rgba(255,255,255,0.07)", color: filterDifficulty ? DIFFICULTY_COLORS[filterDifficulty] : "#6b6b80", padding: "7px 12px", fontSize: "0.82rem", cursor: "pointer" }}
+              >
+                <option value="">すべての難易度</option>
+                <option value="easy">初級</option>
+                <option value="medium">中級</option>
+                <option value="hard">上級</option>
+              </select>
+
+              {/* お気に入りフィルタ */}
+              <button
+                type="button"
+                onClick={() => setFilterFavorite(filterFavorite === true ? undefined : true)}
+                style={{
+                  background: filterFavorite === true ? "rgba(255,77,109,0.15)" : "#111118",
+                  border: `1px solid ${filterFavorite === true ? "rgba(255,77,109,0.5)" : "rgba(255,255,255,0.07)"}`,
+                  color: filterFavorite === true ? "#ff4d6d" : "#6b6b80",
+                  padding: "7px 12px",
+                  cursor: "pointer",
+                  fontSize: "0.82rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <Heart size={13} fill={filterFavorite === true ? "#ff4d6d" : "none"} />
+                お気に入り
+              </button>
+
+              {/* フィルタリセット */}
+              {hasActiveFilter && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    setFilterTagId(undefined);
+                    setFilterFavorite(undefined);
+                    setFilterDifficulty(undefined);
+                  }}
+                  style={{ background: "none", border: "none", color: "#6b6b80", cursor: "pointer", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: 4 }}
+                >
+                  <X size={13} /> リセット
+                </button>
+              )}
+            </div>
+          </div>
+
           {quizListQuery.isLoading ? (
             <div style={{ background: "#111118", border: "1px solid rgba(255,255,255,0.07)", padding: 32, textAlign: "center", color: "#6b6b80" }}>読み込み中...</div>
           ) : quizListQuery.data?.quizzes.length === 0 ? (
             <div style={{ background: "#111118", border: "1px solid rgba(255,255,255,0.07)", padding: 48, textAlign: "center", color: "#6b6b80" }}>
-              <p>まだクイズがありません</p>
-              <p style={{ fontSize: "0.85rem", marginTop: 8 }}>上のフォームにURLを入力してクイズを生成しましょう</p>
+              <p>{hasActiveFilter ? "条件に一致するクイズがありません" : "まだクイズがありません"}</p>
+              {!hasActiveFilter && <p style={{ fontSize: "0.85rem", marginTop: 8 }}>上のフォームにURLを入力してクイズを生成しましょう</p>}
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
               {quizListQuery.data?.quizzes.map((q) => (
-                <div key={q.id} style={{ background: "#111118", border: "1px solid rgba(255,255,255,0.07)", padding: "20px 24px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-                  <div style={{ flex: 1, minWidth: 200 }}>
-                    <div style={{ fontWeight: 500, marginBottom: 6, fontSize: "0.95rem" }}>{q.sourceTitle}</div>
-                    <a
-                      href={q.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={q.sourceUrl}
+                <div key={q.id} style={{ background: "#111118", border: "1px solid rgba(255,255,255,0.07)", padding: "20px 24px" }}>
+                  {/* メイン行 */}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+                    {/* お気に入りボタン */}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleFavorite(q)}
                       style={{
-                        display: "block",
-                        fontSize: "0.75rem",
-                        color: "#00e5ff",
-                        marginBottom: 6,
-                        maxWidth: 420,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        textDecoration: "none",
-                        opacity: 0.8,
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "2px",
+                        color: q.isFavorite ? "#ff4d6d" : "#3d3d4d",
+                        flexShrink: 0,
+                        marginTop: 2,
+                        transition: "color 0.15s",
                       }}
+                      title={q.isFavorite ? "お気に入り解除" : "お気に入りに追加"}
                     >
-                      🔗 {q.sourceUrl}
-                    </a>
-                    <div style={{ fontSize: "0.75rem", color: "#6b6b80", display: "flex", gap: 12 }}>
-                      <span style={{ color: DIFFICULTY_COLORS[q.difficulty] }}>{DIFFICULTY_LABELS[q.difficulty]}</span>
-                      <span>{q.questionCount}問</span>
-                      <span>{new Date(q.createdAt).toLocaleDateString("ja-JP")}</span>
-                      {q.attemptCount > 0 && (
-                        <>
-                          <span style={{ color: "#3d3d4d" }}>|</span>
-                          <span>{q.attemptCount}回挑戦</span>
-                          {q.bestScore !== null && (
-                            <span style={{ color: "#c8ff00" }}>
-                              最高 {q.bestScore}/{q.questionCount}問
-                            </span>
-                          )}
-                        </>
+                      <Heart size={18} fill={q.isFavorite ? "#ff4d6d" : "none"} />
+                    </button>
+
+                    {/* 情報エリア */}
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                      <div style={{ fontWeight: 500, marginBottom: 4, fontSize: "0.95rem" }}>{q.sourceTitle}</div>
+                      <a
+                        href={q.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={q.sourceUrl}
+                        style={{
+                          display: "block",
+                          fontSize: "0.75rem",
+                          color: "#00e5ff",
+                          marginBottom: 6,
+                          maxWidth: 420,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          textDecoration: "none",
+                          opacity: 0.8,
+                        }}
+                      >
+                        🔗 {q.sourceUrl}
+                      </a>
+                      <div style={{ fontSize: "0.75rem", color: "#6b6b80", display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                        <span style={{ color: DIFFICULTY_COLORS[q.difficulty] }}>{DIFFICULTY_LABELS[q.difficulty]}</span>
+                        <span>{q.questionCount}問</span>
+                        <span>{new Date(q.createdAt).toLocaleDateString("ja-JP")}</span>
+                        {q.attemptCount > 0 && (
+                          <>
+                            <span style={{ color: "#3d3d4d" }}>|</span>
+                            <span>{q.attemptCount}回挑戦</span>
+                            {q.bestScore !== null && (
+                              <span style={{ color: "#c8ff00" }}>最高 {q.bestScore}/{q.questionCount}問</span>
+                            )}
+                          </>
+                        )}
+                      </div>
+
+                      {/* タグ一覧 */}
+                      {q.tags.length > 0 && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
+                          {q.tags.map((t) => (
+                            <TagBadge key={t.id} tag={t} />
+                          ))}
+                        </div>
+                      )}
+
+                      {/* メモプレビュー */}
+                      {q.memo && (
+                        <div style={{ marginTop: 8, fontSize: "0.78rem", color: "#6b6b80", background: "rgba(200,255,0,0.04)", border: "1px solid rgba(200,255,0,0.1)", padding: "6px 10px", borderRadius: 2 }}>
+                          📝 {q.memo.length > 80 ? `${q.memo.slice(0, 80)}…` : q.memo}
+                        </div>
                       )}
                     </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button
-                      type="button"
-                      onClick={() => navigate({ to: "/quiz/$quizId", params: { quizId: q.id } })}
-                      style={{ background: "#c8ff00", color: "#0a0a0f", border: "none", padding: "8px 18px", fontFamily: "Syne, sans-serif", fontWeight: 700, fontSize: "0.8rem", letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer" }}
-                    >
-                      挑戦する
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeleteTargetId(q.id)}
-                      style={{ background: "rgba(255,77,109,0.12)", border: "1px solid rgba(255,77,109,0.3)", color: "#ff4d6d", padding: "8px 14px", cursor: "pointer", fontSize: "0.8rem" }}
-                    >
-                      削除
-                    </button>
+
+                    {/* アクションボタン群 */}
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0, flexWrap: "wrap", alignItems: "flex-start" }}>
+                      {/* タグ管理 */}
+                      <TagSelector
+                        quizId={q.id}
+                        attachedTags={q.tags}
+                        allTags={allTags}
+                        onAttach={(tagId) => attachTagMutation.mutate({ quizId: q.id, tagId })}
+                        onDetach={(tagId) => detachTagMutation.mutate({ quizId: q.id, tagId })}
+                        onCreateTag={(name) => handleCreateTagAndAttach(q.id, name)}
+                      />
+
+                      {/* メモ編集 */}
+                      <MemoEditor
+                        quizId={q.id}
+                        initialMemo={q.memo}
+                        onSave={(memo) => handleSaveMemo(q.id, memo)}
+                      />
+
+                      {/* 挑戦ボタン */}
+                      <button
+                        type="button"
+                        onClick={() => navigate({ to: "/quiz/$quizId", params: { quizId: q.id } })}
+                        style={{ background: "#c8ff00", color: "#0a0a0f", border: "none", padding: "8px 18px", fontFamily: "Syne, sans-serif", fontWeight: 700, fontSize: "0.8rem", letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer" }}
+                      >
+                        挑戦する
+                      </button>
+
+                      {/* 削除ボタン */}
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTargetId(q.id)}
+                        style={{ background: "rgba(255,77,109,0.12)", border: "1px solid rgba(255,77,109,0.3)", color: "#ff4d6d", padding: "8px 10px", cursor: "pointer", fontSize: "0.8rem", display: "flex", alignItems: "center" }}
+                        title="削除"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

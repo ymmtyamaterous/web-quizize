@@ -2,7 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 import { user } from "./auth";
-import { quiz, quizChoice, quizQuestion } from "./quiz";
+import { quiz, quizChoice, quizQuestion, quizTag } from "./quiz";
 
 export const quizAttempt = sqliteTable(
   "quiz_attempt",
@@ -55,6 +55,7 @@ export const quizRelations = relations(quiz, ({ one, many }) => ({
   user: one(user, { fields: [quiz.userId], references: [user.id] }),
   questions: many(quizQuestion),
   attempts: many(quizAttempt),
+  quizTags: many(quizTag),
 }));
 
 export const quizQuestionRelations = relations(quizQuestion, ({ one, many }) => ({
