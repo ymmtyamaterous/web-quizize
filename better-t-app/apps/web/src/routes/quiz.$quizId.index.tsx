@@ -207,8 +207,28 @@ function QuizPage() {
         >
           web<span style={{ color: "#c8ff00" }}>quizize</span>
         </div>
-        <div style={{ fontSize: "0.85rem", color: "#6b6b80" }}>
-          {quiz.sourceTitle ?? quiz.sourceUrl}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, maxWidth: 320, overflow: "hidden" }}>
+          <span style={{ fontSize: "0.85rem", color: "#6b6b80", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}>
+            {quiz.sourceTitle ?? quiz.sourceUrl}
+          </span>
+          <a
+            href={quiz.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={quiz.sourceUrl}
+            style={{
+              fontSize: "0.72rem",
+              color: "#00e5ff",
+              opacity: 0.7,
+              textDecoration: "none",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              maxWidth: "100%",
+            }}
+          >
+            🔗 {quiz.sourceUrl}
+          </a>
         </div>
       </nav>
 

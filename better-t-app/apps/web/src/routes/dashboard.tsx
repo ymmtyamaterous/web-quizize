@@ -157,7 +157,27 @@ function DashboardPage() {
               {quizListQuery.data?.quizzes.map((q) => (
                 <div key={q.id} style={{ background: "#111118", border: "1px solid rgba(255,255,255,0.07)", padding: "20px 24px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
                   <div style={{ flex: 1, minWidth: 200 }}>
-                    <div style={{ fontWeight: 500, marginBottom: 4, fontSize: "0.95rem" }}>{q.sourceTitle}</div>
+                    <div style={{ fontWeight: 500, marginBottom: 6, fontSize: "0.95rem" }}>{q.sourceTitle}</div>
+                    <a
+                      href={q.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={q.sourceUrl}
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#00e5ff",
+                        marginBottom: 6,
+                        maxWidth: 420,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        textDecoration: "none",
+                        opacity: 0.8,
+                      }}
+                    >
+                      🔗 {q.sourceUrl}
+                    </a>
                     <div style={{ fontSize: "0.75rem", color: "#6b6b80", display: "flex", gap: 12 }}>
                       <span style={{ color: DIFFICULTY_COLORS[q.difficulty] }}>{DIFFICULTY_LABELS[q.difficulty]}</span>
                       <span>{q.questionCount}問</span>
