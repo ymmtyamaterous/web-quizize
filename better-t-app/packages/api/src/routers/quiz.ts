@@ -79,9 +79,9 @@ async function generateQuestionsWithAi(
   questionCount: number,
 ): Promise<AiQuestion[]> {
   const difficultyGuide = {
-    easy: "見出しレベルの重要語句、固有名詞、数値など明確なキーワードを空欄にしてください。",
-    medium: "文脈理解が必要な概念語・動詞・因果関係を空欄にしてください。",
-    hard: "複数の情報を組み合わせた推論が必要なキーワードや専門的な表現を空欄にしてください。",
+    easy: "見出しレベルの重要語句、固有名詞、数値など明確なキーワードを空欄にする。",
+    medium: "文脈理解が必要な概念語・動詞・因果関係を空欄にする。",
+    hard: "複数の情報を組み合わせた推論が必要なキーワードや専門的な表現を空欄にする。",
   };
 
   const openai = new OpenAI({
@@ -89,31 +89,37 @@ async function generateQuestionsWithAi(
     baseURL: env.SAKURA_AI_API_BASE_URL,
   });
 
-  const systemPrompt = `あなたは教育用クイズ生成AIです。
-与えられたWebページのテキストコンテンツを元に、内容理解を助ける穴埋めクイズ（4択形式）を生成してください。
+  // few-shot例を含む厳格なJSONプロンプト
+  const exampleJson = JSON.stringify({
+    questions: [
+      {
+        sentence: "Goのコンパイラは___と呼ばれる最適化でインデックスチェックを除去する。",
+        answer: "BCE",
+        explanation: "BCEはBounds Check Eliminationの略で、コンパイラが安全と証明できたアクセスのチェックを省略する。",
+        choices: ["BCE", "SSA", "GC", "CSE"],
+      },
+    ],
+  }, null, 2);
+
+  const systemPrompt = `あなたはJSONデータ生成プログラムです。
+与えられたテキストから穴埋めクイズを生成し、必ず有効なJSONのみを出力してください。
+説明文、前置き、コードブロック記号(バッククォート)は一切不要です。
+最初の文字は必ず「{」にしてください。
+
+難易度: ${difficultyGuide[difficulty]}
+
+出力するJSONの構造（この形式を厳守すること）:
+${exampleJson}
 
 ルール:
-1. 文脈上重要なキーワードや概念を空欄（___）にする
-2. 正解は必ず本文中から抽出すること
-3. 不正解の選択肢は本文と関連があるが明らかに誤りのものにする
-4. 解説は本文の内容をもとに簡潔に記述する
-5. 難易度指示: ${difficultyGuide[difficulty]}
+- sentenceには必ず「___」を1つ含める
+- choices[0]が正解、choices[1〜3]が誤答（計4個）
+- choicesの誤答は本文中の別の語句から選ぶ
+- 正解は本文から直接引用する`;
 
-出力形式（JSON、他の文字列は一切含めない）:
-{
-  "questions": [
-    {
-      "sentence": "___を含む問題文（___が空欄）",
-      "answer": "正解の語句",
-      "explanation": "解説文",
-      "choices": ["正解の語句", "誤答1", "誤答2", "誤答3"]
-    }
-  ]
-}
+  const userPrompt = `以下のテキストから${questionCount}問のクイズをJSON形式で生成してください。出力はJSONのみ。
 
-choicesの最初の要素(choices[0])は必ず正解にすること。`;
-
-  const userPrompt = `以下のWebページの内容から${questionCount}問の穴埋めクイズを生成してください。\n\n${content.slice(0, 8000)}`;
+${content.slice(0, 6000)}`;
 
   const completion = await openai.chat.completions
     .create({
@@ -121,8 +127,9 @@ choicesの最初の要素(choices[0])は必ず正解にすること。`;
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
+        { role: "assistant", content: "{" },
       ],
-      temperature: 0.7,
+      temperature: 0.3,
     })
     .catch((err) => {
       console.error("[quiz.generate] OpenAI API error:", err?.message ?? err);
@@ -131,12 +138,16 @@ choicesの最初の要素(choices[0])は必ず正解にすること。`;
 
   const rawContent = completion.choices[0]?.message?.content ?? "";
 
+  // assistantプレフィルで "{ " が先頭に付く場合と付かない場合の両方に対応
+  const prependBrace = !rawContent.trimStart().startsWith("{");
+  const candidate = prependBrace ? `{${rawContent}` : rawContent;
+
   // JSON ブロックをテキストから抽出（```json ... ``` や裸の { ... } に対応）
   const jsonMatch =
-    rawContent.match(/```json\s*([\s\S]*?)```/) ??
-    rawContent.match(/```\s*([\s\S]*?)```/) ??
-    rawContent.match(/(\{[\s\S]*\})/);
-  const jsonText = jsonMatch?.[1]?.trim() ?? rawContent.trim();
+    candidate.match(/```json\s*([\s\S]*?)```/) ??
+    candidate.match(/```\s*([\s\S]*?)```/) ??
+    candidate.match(/(\{[\s\S]*\})/);
+  const jsonText = jsonMatch?.[1]?.trim() ?? candidate.trim();
 
   let parsed: { questions: AiQuestion[] };
   try {
