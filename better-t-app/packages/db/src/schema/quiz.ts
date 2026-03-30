@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 import { user } from "./auth";
@@ -67,19 +67,3 @@ export const quizChoice = sqliteTable(
   (table) => [index("quiz_choice_questionId_idx").on(table.questionId)],
 );
 
-export const quizRelations = relations(quiz, ({ one, many }) => ({
-  user: one(user, { fields: [quiz.userId], references: [user.id] }),
-  questions: many(quizQuestion),
-}));
-
-export const quizQuestionRelations = relations(quizQuestion, ({ one, many }) => ({
-  quiz: one(quiz, { fields: [quizQuestion.quizId], references: [quiz.id] }),
-  choices: many(quizChoice),
-}));
-
-export const quizChoiceRelations = relations(quizChoice, ({ one }) => ({
-  question: one(quizQuestion, {
-    fields: [quizChoice.questionId],
-    references: [quizQuestion.id],
-  }),
-}));

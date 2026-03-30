@@ -1,9 +1,10 @@
 import { db } from "@better-t-app/db";
 import { quiz, quizChoice, quizQuestion } from "@better-t-app/db/schema/quiz";
+import { quizAttempt } from "@better-t-app/db/schema/quizAttempt";
 import { env } from "@better-t-app/env/server";
 import { ORPCError } from "@orpc/server";
 import * as cheerio from "cheerio";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import OpenAI from "openai";
 import { z } from "zod";
 
@@ -258,9 +259,29 @@ export const quizRouter = {
 
       const [quizzes, [countRow]] = await Promise.all([
         db
-          .select()
+          .select({
+            id: quiz.id,
+            sourceUrl: quiz.sourceUrl,
+            sourceTitle: quiz.sourceTitle,
+            difficulty: quiz.difficulty,
+            questionCount: quiz.questionCount,
+            status: quiz.status,
+            createdAt: quiz.createdAt,
+            lastAttemptAt: sql<number | null>`max(${quizAttempt.completedAt})`,
+            bestScore: sql<number | null>`max(${quizAttempt.score})`,
+            attemptCount: sql<number>`count(${quizAttempt.id})`,
+          })
           .from(quiz)
+          .leftJoin(
+            quizAttempt,
+            and(
+              eq(quizAttempt.quizId, quiz.id),
+              eq(quizAttempt.userId, userId),
+              isNotNull(quizAttempt.completedAt),
+            ),
+          )
           .where(eq(quiz.userId, userId))
+          .groupBy(quiz.id)
           .orderBy(desc(quiz.createdAt))
           .limit(limit)
           .offset(offset),
@@ -281,6 +302,9 @@ export const quizRouter = {
           questionCount: q.questionCount,
           status: q.status,
           createdAt: q.createdAt?.toISOString() ?? "",
+          lastAttemptAt: q.lastAttemptAt ? new Date(Number(q.lastAttemptAt)).toISOString() : null,
+          bestScore: q.bestScore ?? null,
+          attemptCount: q.attemptCount ?? 0,
         })),
         total,
         page,

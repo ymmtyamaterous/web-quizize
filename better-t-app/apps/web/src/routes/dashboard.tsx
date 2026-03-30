@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { BookOpen, Clock, LogOut, Target, Trophy } from "lucide-react";
+import { BookOpen, Clock, Flame, LogOut, Target, Trophy } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -126,12 +126,13 @@ function DashboardPage() {
 
         {/* STATS */}
         {statsQuery.data && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 2, marginBottom: 40 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 2, marginBottom: 40 }}>
             {[
               { icon: <BookOpen size={18} />, label: "生成クイズ数", value: `${statsQuery.data.totalQuizzesGenerated}件` },
               { icon: <Target size={18} />, label: "挑戦回数", value: `${statsQuery.data.totalAttempts}回` },
               { icon: <Trophy size={18} />, label: "総合正答率", value: `${statsQuery.data.overallAccuracy}%` },
               { icon: <Clock size={18} />, label: "累計学習時間", value: statsQuery.data.totalStudyTimeSeconds > 0 ? formatTime(statsQuery.data.totalStudyTimeSeconds) : "—" },
+              { icon: <Flame size={18} />, label: "連続学習日数", value: `${statsQuery.data.currentStreak}日` },
             ].map((s) => (
               <div key={s.label} style={{ background: "#111118", border: "1px solid rgba(255,255,255,0.07)", padding: "24px 28px" }}>
                 <div style={{ color: "#c8ff00", marginBottom: 12 }}>{s.icon}</div>
@@ -182,6 +183,17 @@ function DashboardPage() {
                       <span style={{ color: DIFFICULTY_COLORS[q.difficulty] }}>{DIFFICULTY_LABELS[q.difficulty]}</span>
                       <span>{q.questionCount}問</span>
                       <span>{new Date(q.createdAt).toLocaleDateString("ja-JP")}</span>
+                      {q.attemptCount > 0 && (
+                        <>
+                          <span style={{ color: "#3d3d4d" }}>|</span>
+                          <span>{q.attemptCount}回挑戦</span>
+                          {q.bestScore !== null && (
+                            <span style={{ color: "#c8ff00" }}>
+                              最高 {q.bestScore}/{q.questionCount}問
+                            </span>
+                          )}
+                        </>
+                      )}
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>

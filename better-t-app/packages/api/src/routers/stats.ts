@@ -15,6 +15,7 @@ export const statsRouter = {
       [attemptCount],
       [answerStats],
       [timeStats],
+      completionDates,
     ] = await Promise.all([
       db
         .select({ count: sql<number>`count(*)` })
@@ -43,6 +44,14 @@ export const statsRouter = {
             isNotNull(quizAttempt.completedAt),
           ),
         ),
+      // 連続学習日数計算用：完了日の一覧を取得
+      db
+        .selectDistinct({
+          date: sql<string>`date(${quizAttempt.completedAt} / 1000, 'unixepoch')`,
+        })
+        .from(quizAttempt)
+        .where(and(eq(quizAttempt.userId, userId), isNotNull(quizAttempt.completedAt)))
+        .orderBy(desc(sql`date(${quizAttempt.completedAt} / 1000, 'unixepoch')`)),
     ]);
 
     const totalAnswered = answerStats?.total ?? 0;
@@ -51,12 +60,25 @@ export const statsRouter = {
       totalAnswered > 0 ? Math.round((correctAnswered / totalAnswered) * 100) : 0;
     const totalStudyTimeSeconds = Math.round((timeStats?.totalMs ?? 0) / 1000);
 
+    // 連続学習日数を計算（今日から遡って連続した日数）
+    const dateSet = new Set(completionDates.map((d) => d.date));
+    let currentStreak = 0;
+    for (let i = 0; i < 365; i++) {
+      const d = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
+      if (dateSet.has(d)) {
+        currentStreak++;
+      } else {
+        break;
+      }
+    }
+
     return {
       totalQuizzesGenerated: quizCount?.count ?? 0,
       totalAttempts: attemptCount?.count ?? 0,
       totalQuestionsAnswered: totalAnswered,
       overallAccuracy,
       totalStudyTimeSeconds,
+      currentStreak,
     };
   }),
 

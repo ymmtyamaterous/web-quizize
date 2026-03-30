@@ -49,6 +49,27 @@ export const quizAttemptAnswer = sqliteTable(
   (table) => [index("quiz_attempt_answer_attemptId_idx").on(table.attemptId)],
 );
 
+// ── quiz / quizQuestion / quizChoice のリレーション（循環依存回避のためここで定義）──
+
+export const quizRelations = relations(quiz, ({ one, many }) => ({
+  user: one(user, { fields: [quiz.userId], references: [user.id] }),
+  questions: many(quizQuestion),
+  attempts: many(quizAttempt),
+}));
+
+export const quizQuestionRelations = relations(quizQuestion, ({ one, many }) => ({
+  quiz: one(quiz, { fields: [quizQuestion.quizId], references: [quiz.id] }),
+  choices: many(quizChoice),
+  answers: many(quizAttemptAnswer),
+}));
+
+export const quizChoiceRelations = relations(quizChoice, ({ one }) => ({
+  question: one(quizQuestion, {
+    fields: [quizChoice.questionId],
+    references: [quizQuestion.id],
+  }),
+}));
+
 export const quizAttemptRelations = relations(quizAttempt, ({ one, many }) => ({
   user: one(user, { fields: [quizAttempt.userId], references: [user.id] }),
   quiz: one(quiz, { fields: [quizAttempt.quizId], references: [quiz.id] }),
