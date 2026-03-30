@@ -2,6 +2,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
+import { authClient } from "@/lib/auth-client";
+
 export const Route = createFileRoute("/")({
   component: LandingPage,
 });
@@ -10,6 +12,7 @@ function LandingPage() {
   const navigate = useNavigate();
   const [url, setUrl] = useState("");
   const [urlError, setUrlError] = useState(false);
+  const { data: session } = authClient.useSession();
 
   const revealRefs = useRef<HTMLElement[]>([]);
   useEffect(() => {
@@ -38,7 +41,11 @@ function LandingPage() {
       setTimeout(() => setUrlError(false), 2000);
       return;
     }
-    navigate({ to: "/login" });
+    if (session) {
+      navigate({ to: "/quiz/generating", search: { url, difficulty: "medium", questionCount: 5 } });
+    } else {
+      navigate({ to: "/login" });
+    }
   };
 
   return (
@@ -81,9 +88,37 @@ function LandingPage() {
             <li><a href="#how" style={{ color: "var(--lp-muted)", fontSize: "0.85rem", letterSpacing: "0.04em" }}>使い方</a></li>
             <li><a href="#features" style={{ color: "var(--lp-muted)", fontSize: "0.85rem", letterSpacing: "0.04em" }}>機能</a></li>
             <li>
-              <button type="button" onClick={() => navigate({ to: "/signup" })} style={{ background: "var(--lp-accent)", color: "var(--lp-bg)", border: "none", padding: "8px 20px", fontFamily: "Syne, sans-serif", fontWeight: 700, fontSize: "0.8rem", letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
-                無料で試す
-              </button>
+              {session ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                  <span style={{ color: "var(--lp-muted)", fontSize: "0.82rem" }}>
+                    {session.user.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: "/dashboard" })}
+                    style={{ background: "var(--lp-accent)", color: "var(--lp-bg)", border: "none", padding: "8px 20px", fontFamily: "Syne, sans-serif", fontWeight: 700, fontSize: "0.8rem", letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}
+                  >
+                    マイページ
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: "/login" })}
+                    style={{ background: "transparent", color: "var(--lp-muted)", border: "1px solid rgba(255,255,255,0.15)", padding: "8px 18px", fontFamily: "Syne, sans-serif", fontWeight: 700, fontSize: "0.8rem", letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}
+                  >
+                    ログイン
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: "/signup" })}
+                    style={{ background: "var(--lp-accent)", color: "var(--lp-bg)", border: "none", padding: "8px 20px", fontFamily: "Syne, sans-serif", fontWeight: 700, fontSize: "0.8rem", letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}
+                  >
+                    無料で試す
+                  </button>
+                </div>
+              )}
             </li>
           </ul>
         </nav>
