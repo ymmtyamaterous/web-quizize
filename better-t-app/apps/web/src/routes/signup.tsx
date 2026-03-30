@@ -1,12 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import SignInForm from "@/components/sign-in-form";
+import SignUpForm from "@/components/sign-up-form";
 
-export const Route = createFileRoute("/login")({
-  component: LoginPage,
+export const Route = createFileRoute("/signup")({
+  component: SignUpPage,
 });
 
-function LoginPage() {
+function SignUpPage() {
   const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
@@ -22,16 +22,16 @@ function LoginPage() {
           </div>
         </div>
         <div className="bg-[#111118] border border-white/7 p-8">
-          <SignInForm onSwitchToSignUp={() => navigate({ to: "/signup" })} />
+          <SignUpForm onSwitchToSignIn={() => navigate({ to: "/login" })} />
         </div>
         <p className="text-center mt-4 text-sm text-[#6b6b80]">
-          アカウントをお持ちでない方は{" "}
+          すでにアカウントをお持ちの方は{" "}
           <button
             type="button"
-            onClick={() => navigate({ to: "/signup" })}
+            onClick={() => navigate({ to: "/login" })}
             className="text-[#c8ff00] hover:underline"
           >
-            新規登録
+            ログイン
           </button>
         </p>
       </div>
