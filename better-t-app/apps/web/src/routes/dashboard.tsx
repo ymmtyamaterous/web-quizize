@@ -32,7 +32,7 @@ function DashboardPage() {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   const statsQuery = useQuery(orpc.stats.summary.queryOptions());
-  const quizListQuery = useQuery(orpc.quiz.list.queryOptions({ page: 1, limit: 20 }));
+  const quizListQuery = useQuery(orpc.quiz.list.queryOptions({ input: { page: 1, limit: 20 } }));
 
   const deleteMutation = useMutation({
     ...orpc.quiz.delete.mutationOptions(),
