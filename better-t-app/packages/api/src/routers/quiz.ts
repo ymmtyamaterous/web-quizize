@@ -1,10 +1,10 @@
 import { db } from "@better-t-app/db";
 import { quiz, quizChoice, quizQuestion, quizTag, tag } from "@better-t-app/db/schema/quiz";
-import { quizAttempt } from "@better-t-app/db/schema/quizAttempt";
+import { quizAttempt, quizAttemptAnswer } from "@better-t-app/db/schema/quizAttempt";
 import { env } from "@better-t-app/env/server";
 import { ORPCError } from "@orpc/server";
 import * as cheerio from "cheerio";
-import { and, desc, eq, exists, inArray, isNotNull, like, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, inArray, isNotNull, like, sql } from "drizzle-orm";
 import OpenAI from "openai";
 import { z } from "zod";
 
@@ -736,10 +736,7 @@ export const quizRouter = {
         })
         .where(eq(quizQuestion.id, input.questionId));
 
-      // 既存選択肢を全削除して再挿入（AIは新しい選択肢を生成するため）
-      await db.delete(quizChoice).where(eq(quizChoice.questionId, input.questionId));
-
-      // choices[0] が正解、シャッフルして挿入
+      // choices[0] が正解、シャッフルして選択肢を更新
       const correctChoice = refined.choices[0];
       const shuffledChoices = [...refined.choices] as string[];
       for (let j = shuffledChoices.length - 1; j > 0; j--) {
@@ -749,15 +746,47 @@ export const quizRouter = {
         shuffledChoices[k] = tmp ?? "";
       }
 
+      // 既存選択肢を orderIndex 順で取得
+      // quiz_attempt_answer が quiz_choice.id を参照しているため DELETE は使わず、
+      // 既存レコードのIDを保ったまま UPDATE する（FK制約違反を回避）
+      const existingChoices = await db
+        .select()
+        .from(quizChoice)
+        .where(eq(quizChoice.questionId, input.questionId))
+        .orderBy(asc(quizChoice.orderIndex));
+
       for (let ci = 0; ci < shuffledChoices.length; ci++) {
         const choiceText = shuffledChoices[ci] ?? "";
-        await db.insert(quizChoice).values({
-          id: generateId(),
-          questionId: input.questionId,
-          text: choiceText,
-          isCorrect: choiceText === correctChoice,
-          orderIndex: ci,
-        });
+        const existing = existingChoices[ci];
+        if (existing) {
+          // 既存レコードを UPDATE（IDは変えない）
+          await db
+            .update(quizChoice)
+            .set({ text: choiceText, isCorrect: choiceText === correctChoice, orderIndex: ci })
+            .where(eq(quizChoice.id, existing.id));
+        } else {
+          // 既存より多い場合のみ新規挿入
+          await db.insert(quizChoice).values({
+            id: generateId(),
+            questionId: input.questionId,
+            text: choiceText,
+            isCorrect: choiceText === correctChoice,
+            orderIndex: ci,
+          });
+        }
+      }
+
+      // 既存より少ない場合は余分な選択肢を削除（FK先の quiz_attempt_answer を先に削除）
+      if (existingChoices.length > shuffledChoices.length) {
+        const excessIds = existingChoices
+          .slice(shuffledChoices.length)
+          .map((c) => c.id);
+        await db
+          .delete(quizAttemptAnswer)
+          .where(inArray(quizAttemptAnswer.selectedChoiceId, excessIds));
+        await db
+          .delete(quizChoice)
+          .where(inArray(quizChoice.id, excessIds));
       }
 
       // 更新後の問題を返す
