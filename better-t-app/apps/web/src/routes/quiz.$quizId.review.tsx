@@ -23,6 +23,13 @@ interface EditState {
   choices: ChoiceEdit[];
 }
 
+interface UndoData {
+  sentence: string;
+  answer: string;
+  explanation: string;
+  choices: ChoiceEdit[];
+}
+
 // ──── Main Component ──────────────────────────────────────────────────────────
 
 function ReviewPage() {
@@ -34,6 +41,7 @@ function ReviewPage() {
   const [editState, setEditState] = useState<EditState | null>(null);
   const [aiId, setAiId] = useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
+  const [undoMap, setUndoMap] = useState<Record<string, UndoData>>({});
 
   const reviewQuery = useQuery(
     orpc.quiz.review.queryOptions({ input: { quizId } }),
@@ -51,6 +59,25 @@ function ReviewPage() {
       setEditingId(null);
       setEditState(null);
       toast.success("問題を更新しました");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const undoMutation = useMutation({
+    ...orpc.quiz.updateQuestion.mutationOptions(),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: orpc.quiz.review.queryOptions({ input: { quizId } }).queryKey,
+      });
+      queryClient.invalidateQueries({
+        queryKey: orpc.quiz.get.queryOptions({ input: { quizId } }).queryKey,
+      });
+      setUndoMap((prev) => {
+        const next = { ...prev };
+        delete next[variables.questionId];
+        return next;
+      });
+      toast.success("元の問題に戻しました");
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -123,7 +150,40 @@ function ReviewPage() {
       toast.error("修正指示を入力してください");
       return;
     }
-    aiMutation.mutate({ questionId, prompt: aiPrompt });
+    // 修正前の問題データを保存しておく
+    const currentQuestion = reviewQuery.data?.questions.find((q) => q.id === questionId);
+    if (!currentQuestion) return;
+    const snapshot: UndoData = {
+      sentence: currentQuestion.sentence,
+      answer: currentQuestion.answer,
+      explanation: currentQuestion.explanation,
+      choices: currentQuestion.choices.map((c) => ({
+        id: c.id,
+        text: c.text,
+        isCorrect: c.isCorrect,
+      })),
+    };
+    aiMutation.mutate(
+      { questionId, prompt: aiPrompt },
+      {
+        onSuccess: () => {
+          // AI修正成功後にスナップショットを undoMap に登録
+          setUndoMap((prev) => ({ ...prev, [questionId]: snapshot }));
+        },
+      },
+    );
+  }
+
+  function handleUndo(questionId: string) {
+    const undoData = undoMap[questionId];
+    if (!undoData) return;
+    undoMutation.mutate({
+      questionId,
+      sentence: undoData.sentence,
+      answer: undoData.answer,
+      explanation: undoData.explanation,
+      choices: undoData.choices,
+    });
   }
 
   function updateChoice(index: number, field: keyof ChoiceEdit, value: string | boolean) {
@@ -461,6 +521,47 @@ function ReviewPage() {
                         >
                           🤖 AI修正
                         </button>
+                        {/* AI修正後の元に戻すボタン */}
+                        {undoMap[question.id] && (
+                          <button
+                            type="button"
+                            onClick={() => handleUndo(question.id)}
+                            disabled={undoMutation.isPending}
+                            style={{
+                              background: "rgba(255,180,0,0.08)",
+                              border: "1px solid rgba(255,180,0,0.3)",
+                              color: undoMutation.isPending ? "rgba(255,180,0,0.4)" : "#ffb400",
+                              padding: "5px 14px",
+                              cursor: undoMutation.isPending ? "not-allowed" : "pointer",
+                              fontFamily: "Syne, sans-serif",
+                              fontWeight: 700,
+                              fontSize: "0.75rem",
+                              letterSpacing: "0.04em",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 5,
+                            }}
+                          >
+                            {undoMutation.isPending && undoMutation.variables?.questionId === question.id ? (
+                              <>
+                                <span
+                                  style={{
+                                    display: "inline-block",
+                                    width: 11,
+                                    height: 11,
+                                    border: "2px solid rgba(255,180,0,0.2)",
+                                    borderTopColor: "#ffb400",
+                                    borderRadius: "50%",
+                                    animation: "spin 1s linear infinite",
+                                  }}
+                                />
+                                戻し中...
+                              </>
+                            ) : (
+                              "↩ AI修正を元に戻す"
+                            )}
+                          </button>
+                        )}
                       </>
                     )}
                   </div>
