@@ -465,4 +465,50 @@ export const quizRouter = {
 
       return { success: true as const };
     }),
+
+  /** 問題一覧を正答・解説付きで返す（確認用） */
+  review: protectedProcedure
+    .input(z.object({ quizId: z.string() }))
+    .handler(async ({ input, context }) => {
+      const userId = context.session.user.id;
+
+      const quizRow = await db.query.quiz.findFirst({
+        where: and(eq(quiz.id, input.quizId), eq(quiz.userId, userId)),
+        with: {
+          questions: {
+            orderBy: (q, { asc }) => [asc(q.orderIndex)],
+            with: {
+              choices: {
+                orderBy: (c, { asc }) => [asc(c.orderIndex)],
+              },
+            },
+          },
+        },
+      });
+
+      if (!quizRow) {
+        throw new ORPCError("NOT_FOUND", { message: "クイズが見つかりません" });
+      }
+
+      return {
+        id: quizRow.id,
+        sourceUrl: quizRow.sourceUrl,
+        sourceTitle: quizRow.sourceTitle,
+        difficulty: quizRow.difficulty,
+        createdAt: quizRow.createdAt?.toISOString() ?? "",
+        questions: quizRow.questions.map((q) => ({
+          id: q.id,
+          sentence: q.sentence,
+          answer: q.answer,
+          explanation: q.explanation,
+          orderIndex: q.orderIndex,
+          choices: q.choices.map((c) => ({
+            id: c.id,
+            text: c.text,
+            isCorrect: c.isCorrect,
+            orderIndex: c.orderIndex,
+          })),
+        })),
+      };
+    }),
 };

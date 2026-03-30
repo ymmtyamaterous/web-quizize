@@ -750,6 +750,15 @@ function DashboardPage() {
                         onSave={(memo) => handleSaveMemo(q.id, memo)}
                       />
 
+                      {/* 確認ボタン */}
+                      <button
+                        type="button"
+                        onClick={() => navigate({ to: "/quiz/$quizId/review", params: { quizId: q.id } })}
+                        style={{ background: "rgba(255,255,255,0.06)", color: "#a0a0b5", border: "1px solid rgba(255,255,255,0.12)", padding: "8px 14px", fontFamily: "Syne, sans-serif", fontWeight: 700, fontSize: "0.8rem", letterSpacing: "0.05em", cursor: "pointer" }}
+                      >
+                        確認する
+                      </button>
+
                       {/* 挑戦ボタン */}
                       <button
                         type="button"
