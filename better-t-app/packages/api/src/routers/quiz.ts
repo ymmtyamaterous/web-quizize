@@ -118,21 +118,31 @@ choicesの最初の要素(choices[0])は必ず正解にすること。`;
   const completion = await openai.chat.completions
     .create({
       model: env.SAKURA_AI_MODEL,
-      response_format: { type: "json_object" },
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
       temperature: 0.7,
     })
-    .catch(() => {
+    .catch((err) => {
+      console.error("[quiz.generate] OpenAI API error:", err?.message ?? err);
       throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "AI によるクイズ生成に失敗しました" });
     });
 
+  const rawContent = completion.choices[0]?.message?.content ?? "";
+
+  // JSON ブロックをテキストから抽出（```json ... ``` や裸の { ... } に対応）
+  const jsonMatch =
+    rawContent.match(/```json\s*([\s\S]*?)```/) ??
+    rawContent.match(/```\s*([\s\S]*?)```/) ??
+    rawContent.match(/(\{[\s\S]*\})/);
+  const jsonText = jsonMatch?.[1]?.trim() ?? rawContent.trim();
+
   let parsed: { questions: AiQuestion[] };
   try {
-    parsed = JSON.parse(completion.choices[0]?.message?.content ?? "{}");
+    parsed = JSON.parse(jsonText);
   } catch {
+    console.error("[quiz.generate] JSON parse error. raw content:", rawContent.slice(0, 500));
     throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "AI レスポンスの解析に失敗しました" });
   }
 
