@@ -1,7 +1,8 @@
 import { db } from "@better-t-app/db";
-import { quiz } from "@better-t-app/db/schema/quiz";
+import { aiRequestLog, quiz } from "@better-t-app/db/schema/quiz";
 import { quizAttempt, quizAttemptAnswer } from "@better-t-app/db/schema/quizAttempt";
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { env } from "@better-t-app/env/server";
+import { and, desc, eq, gte, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { protectedProcedure } from "../index";
@@ -10,12 +11,19 @@ export const statsRouter = {
   summary: protectedProcedure.handler(async ({ context }) => {
     const userId = context.session.user.id;
 
+    // 今日の UTC 0:00
+    const now = new Date();
+    const startOfDay = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
+
     const [
       [quizCount],
       [attemptCount],
       [answerStats],
       [timeStats],
       completionDates,
+      [aiCountRow],
     ] = await Promise.all([
       db
         .select({ count: sql<number>`count(*)` })
@@ -52,6 +60,16 @@ export const statsRouter = {
         .from(quizAttempt)
         .where(and(eq(quizAttempt.userId, userId), isNotNull(quizAttempt.completedAt)))
         .orderBy(desc(sql`date(${quizAttempt.completedAt} / 1000, 'unixepoch')`)),
+      // 本日のAIリクエスト数
+      db
+        .select({ count: sql<number>`count(*)` })
+        .from(aiRequestLog)
+        .where(
+          and(
+            eq(aiRequestLog.userId, userId),
+            gte(aiRequestLog.createdAt, startOfDay),
+          ),
+        ),
     ]);
 
     const totalAnswered = answerStats?.total ?? 0;
@@ -79,6 +97,8 @@ export const statsRouter = {
       overallAccuracy,
       totalStudyTimeSeconds,
       currentStreak,
+      aiRequestsToday: aiCountRow?.count ?? 0,
+      aiRequestLimit: env.AI_DAILY_REQUEST_LIMIT,
     };
   }),
 

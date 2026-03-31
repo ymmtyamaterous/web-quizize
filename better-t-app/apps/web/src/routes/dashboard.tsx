@@ -14,6 +14,7 @@ import {
   Trash2,
   Trophy,
   X,
+  Zap,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -535,20 +536,56 @@ function DashboardPage() {
               クイズ生成 →
             </button>
           </div>
+          {/* AI 使用状況バー */}
+          {statsQuery.data && (() => {
+            const used = statsQuery.data.aiRequestsToday;
+            const limit = statsQuery.data.aiRequestLimit;
+            const pct = Math.min((used / limit) * 100, 100);
+            const remaining = limit - used;
+            const color = pct >= 100 ? "#ff4d6d" : pct >= 70 ? "#ffaa00" : "#c8ff00";
+            return (
+              <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.78rem", color: "#6b6b80" }}>
+                    <Zap size={13} color={color} />
+                    本日のAIリクエスト
+                  </div>
+                  <span style={{ fontSize: "0.78rem", color: pct >= 100 ? "#ff4d6d" : "#6b6b80" }}>
+                    {pct >= 100
+                      ? "上限に達しました"
+                      : `残り ${remaining} 回 （${used} / ${limit}）`}
+                  </span>
+                </div>
+                <div style={{ height: 4, background: "rgba(255,255,255,0.07)", borderRadius: 2, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 2, transition: "width 0.4s ease" }} />
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* STATS */}
         {statsQuery.data && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 2, marginBottom: 40 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 2, marginBottom: 40 }}>
             {[
-              { icon: <BookOpen size={18} />, label: "生成クイズ数", value: `${statsQuery.data.totalQuizzesGenerated}件` },
-              { icon: <Target size={18} />, label: "挑戦回数", value: `${statsQuery.data.totalAttempts}回` },
-              { icon: <Trophy size={18} />, label: "総合正答率", value: `${statsQuery.data.overallAccuracy}%` },
-              { icon: <Clock size={18} />, label: "累計学習時間", value: statsQuery.data.totalStudyTimeSeconds > 0 ? formatTime(statsQuery.data.totalStudyTimeSeconds) : "—" },
-              { icon: <Flame size={18} />, label: "連続学習日数", value: `${statsQuery.data.currentStreak}日` },
+              { icon: <BookOpen size={18} />, label: "生成クイズ数", value: `${statsQuery.data.totalQuizzesGenerated}件`, color: "#c8ff00" },
+              { icon: <Target size={18} />, label: "挑戦回数", value: `${statsQuery.data.totalAttempts}回`, color: "#c8ff00" },
+              { icon: <Trophy size={18} />, label: "総合正答率", value: `${statsQuery.data.overallAccuracy}%`, color: "#c8ff00" },
+              { icon: <Clock size={18} />, label: "累計学習時間", value: statsQuery.data.totalStudyTimeSeconds > 0 ? formatTime(statsQuery.data.totalStudyTimeSeconds) : "—", color: "#c8ff00" },
+              { icon: <Flame size={18} />, label: "連続学習日数", value: `${statsQuery.data.currentStreak}日`, color: "#c8ff00" },
+              {
+                icon: <Zap size={18} />,
+                label: "本日AI使用",
+                value: `${statsQuery.data.aiRequestsToday} / ${statsQuery.data.aiRequestLimit}`,
+                color: statsQuery.data.aiRequestsToday >= statsQuery.data.aiRequestLimit
+                  ? "#ff4d6d"
+                  : statsQuery.data.aiRequestsToday / statsQuery.data.aiRequestLimit >= 0.7
+                  ? "#ffaa00"
+                  : "#c8ff00",
+              },
             ].map((s) => (
               <div key={s.label} style={{ background: "#111118", border: "1px solid rgba(255,255,255,0.07)", padding: "24px 28px" }}>
-                <div style={{ color: "#c8ff00", marginBottom: 12 }}>{s.icon}</div>
+                <div style={{ color: s.color, marginBottom: 12 }}>{s.icon}</div>
                 <div style={{ fontFamily: "Syne, sans-serif", fontSize: "1.6rem", fontWeight: 800, marginBottom: 4 }}>{s.value}</div>
                 <div style={{ fontSize: "0.75rem", color: "#6b6b80", letterSpacing: "0.05em" }}>{s.label}</div>
               </div>
