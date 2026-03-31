@@ -446,3 +446,118 @@ describe("updateQuestion バリデーション", () => {
     expect(tooLong.length).toBeGreaterThan(500);
   });
 });
+
+// ─── AI 1日リクエスト上限テスト ──────────────────────────────────────────────
+
+interface MockAiRequestLog {
+  id: string;
+  userId: string;
+  requestType: "generate" | "refine";
+  createdAt: Date;
+}
+
+let aiRequestLogStore: MockAiRequestLog[] = [];
+
+function resetAiRequestLogStore() {
+  aiRequestLogStore = [];
+}
+
+/** checkAndRecordAiRequest のロジックをモックで再現 */
+function mockCheckAndRecordAiRequest(
+  userId: string,
+  requestType: "generate" | "refine",
+  limit: number,
+  now: Date = new Date(),
+): { success: true } | { error: string; code: "TOO_MANY_REQUESTS" } {
+  const startOfDay = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
+
+  const used = aiRequestLogStore.filter(
+    (log) => log.userId === userId && log.createdAt >= startOfDay,
+  ).length;
+
+  if (used >= limit) {
+    return {
+      error: `1日のAIリクエスト上限（${limit}件）に達しました。明日また試してください。`,
+      code: "TOO_MANY_REQUESTS",
+    };
+  }
+
+  aiRequestLogStore.push({
+    id: `log-${aiRequestLogStore.length + 1}`,
+    userId,
+    requestType,
+    createdAt: now,
+  });
+
+  return { success: true };
+}
+
+describe("AI 1日リクエスト上限チェック", () => {
+  beforeEach(() => resetAiRequestLogStore());
+
+  test("上限未満の場合はリクエストを記録して成功する", () => {
+    const result = mockCheckAndRecordAiRequest("user-1", "generate", 10);
+    expect(result).toEqual({ success: true });
+    expect(aiRequestLogStore).toHaveLength(1);
+    expect(aiRequestLogStore[0]?.requestType).toBe("generate");
+  });
+
+  test("上限に達した場合は TOO_MANY_REQUESTS エラーを返す", () => {
+    const limit = 3;
+    // 3回使い切る
+    for (let i = 0; i < limit; i++) {
+      const r = mockCheckAndRecordAiRequest("user-1", "generate", limit);
+      expect(r).toEqual({ success: true });
+    }
+    // 4回目はエラー
+    const result = mockCheckAndRecordAiRequest("user-1", "generate", limit);
+    expect(result).toMatchObject({ code: "TOO_MANY_REQUESTS" });
+    // ログは追加されていない
+    expect(aiRequestLogStore).toHaveLength(limit);
+  });
+
+  test("generate と refine は合算してカウントされる", () => {
+    const limit = 2;
+    mockCheckAndRecordAiRequest("user-1", "generate", limit);
+    mockCheckAndRecordAiRequest("user-1", "refine", limit);
+
+    const result = mockCheckAndRecordAiRequest("user-1", "generate", limit);
+    expect(result).toMatchObject({ code: "TOO_MANY_REQUESTS" });
+  });
+
+  test("ユーザーが異なれば独立してカウントされる", () => {
+    const limit = 1;
+    mockCheckAndRecordAiRequest("user-1", "generate", limit);
+
+    // user-1 は上限超過
+    const r1 = mockCheckAndRecordAiRequest("user-1", "generate", limit);
+    expect(r1).toMatchObject({ code: "TOO_MANY_REQUESTS" });
+
+    // user-2 は問題なし
+    const r2 = mockCheckAndRecordAiRequest("user-2", "generate", limit);
+    expect(r2).toEqual({ success: true });
+  });
+
+  test("前日のログは翌日のカウントに含まれない", () => {
+    const limit = 1;
+    const yesterday = new Date(Date.UTC(2026, 2, 30, 12, 0, 0)); // 2026-03-30
+    const today = new Date(Date.UTC(2026, 2, 31, 12, 0, 0));     // 2026-03-31
+
+    // 昨日にリクエストを1回記録
+    mockCheckAndRecordAiRequest("user-1", "generate", limit, yesterday);
+
+    // 今日は上限に達していないので成功
+    const result = mockCheckAndRecordAiRequest("user-1", "generate", limit, today);
+    expect(result).toEqual({ success: true });
+  });
+
+  test("上限1件の場合、1回目は成功して2回目は失敗する", () => {
+    const limit = 1;
+    expect(mockCheckAndRecordAiRequest("user-1", "generate", limit)).toEqual({ success: true });
+    expect(mockCheckAndRecordAiRequest("user-1", "generate", limit)).toMatchObject({
+      code: "TOO_MANY_REQUESTS",
+    });
+  });
+});

@@ -1,10 +1,10 @@
 import { db } from "@better-t-app/db";
-import { quiz, quizChoice, quizQuestion, quizTag, tag } from "@better-t-app/db/schema/quiz";
+import { aiRequestLog, quiz, quizChoice, quizQuestion, quizTag, tag } from "@better-t-app/db/schema/quiz";
 import { quizAttempt, quizAttemptAnswer } from "@better-t-app/db/schema/quizAttempt";
 import { env } from "@better-t-app/env/server";
 import { ORPCError } from "@orpc/server";
 import * as cheerio from "cheerio";
-import { and, asc, desc, eq, exists, inArray, isNotNull, like, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, gte, inArray, isNotNull, like, sql } from "drizzle-orm";
 import OpenAI from "openai";
 import { z } from "zod";
 
@@ -269,6 +269,44 @@ ${content.slice(0, 6000)}`;
   return parsed.questions.slice(0, questionCount);
 }
 
+// ──── AI daily rate-limit helper ─────────────────────────────────────────────
+
+async function checkAndRecordAiRequest(
+  userId: string,
+  requestType: "generate" | "refine",
+): Promise<void> {
+  const limit = env.AI_DAILY_REQUEST_LIMIT;
+
+  // 今日の UTC 0:00 を計算
+  const now = new Date();
+  const startOfDay = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
+
+  const [countRow] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(aiRequestLog)
+    .where(
+      and(
+        eq(aiRequestLog.userId, userId),
+        gte(aiRequestLog.createdAt, startOfDay),
+      ),
+    );
+
+  const used = countRow?.count ?? 0;
+  if (used >= limit) {
+    throw new ORPCError("TOO_MANY_REQUESTS", {
+      message: `1日のAIリクエスト上限（${limit}件）に達しました。明日また試してください。`,
+    });
+  }
+
+  await db.insert(aiRequestLog).values({
+    id: generateId(),
+    userId,
+    requestType,
+  });
+}
+
 // ──── router ─────────────────────────────────────────────
 
 export const quizRouter = {
@@ -283,6 +321,9 @@ export const quizRouter = {
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
       const { url, difficulty, questionCount } = input;
+
+      // 1日のAIリクエスト上限チェック＆記録
+      await checkAndRecordAiRequest(userId, "generate");
 
       // ページ取得
       const { title, text } = await fetchPageContent(url);
@@ -711,6 +752,9 @@ export const quizRouter = {
       if (!questionRow || questionRow.quiz.userId !== userId) {
         throw new ORPCError("NOT_FOUND", { message: "問題が見つかりません" });
       }
+
+      // 1日のAIリクエスト上限チェック＆記録
+      await checkAndRecordAiRequest(userId, "refine");
 
       // AI で問題を修正
       const currentQuestion = {

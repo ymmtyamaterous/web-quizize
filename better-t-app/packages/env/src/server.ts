@@ -12,6 +12,7 @@ export const env = createEnv({
     SAKURA_AI_API_KEY: z.string().min(1),
     SAKURA_AI_API_BASE_URL: z.url(),
     SAKURA_AI_MODEL: z.string().min(1),
+    AI_DAILY_REQUEST_LIMIT: z.coerce.number().int().min(1).default(10),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

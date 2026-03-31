@@ -120,3 +120,23 @@ export const quizChoice = sqliteTable(
   (table) => [index("quiz_choice_questionId_idx").on(table.questionId)],
 );
 
+// ──── AI Request Log ──────────────────────────────────────
+
+export const aiRequestLog = sqliteTable(
+  "ai_request_log",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    requestType: text("request_type", { enum: ["generate", "refine"] }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+  },
+  (table) => [
+    index("ai_request_log_userId_idx").on(table.userId),
+    index("ai_request_log_createdAt_idx").on(table.createdAt),
+  ],
+);
+
