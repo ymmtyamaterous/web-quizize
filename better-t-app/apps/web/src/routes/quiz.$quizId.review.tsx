@@ -288,8 +288,15 @@ function ReviewPage() {
         fontFamily: "'Noto Sans JP', sans-serif",
       }}
     >
+      <style>{`
+        .review-nav { padding: 16px 48px; }
+        @media (max-width: 768px) {
+          .review-nav { padding: 12px 16px !important; }
+        }
+      `}</style>
       {/* ヘッダーナビ */}
       <nav
+        className="review-nav"
         style={{
           borderBottom: "1px solid rgba(255,255,255,0.07)",
           background: "rgba(10,10,15,0.9)",

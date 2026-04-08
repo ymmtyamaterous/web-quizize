@@ -77,16 +77,36 @@ function LandingPage() {
         .lp-anim-2 { animation: lp-fadeUp 0.6s 0.2s ease both; }
         .lp-anim-3 { animation: lp-fadeUp 0.6s 0.3s ease both; }
         .lp-anim-4 { animation: lp-fadeUp 0.6s 0.4s ease both; }
+        /* ── Responsive ─────────────────────── */
+        @media (max-width: 768px) {
+          .lp-nav-r { padding: 14px 20px !important; }
+          .lp-hide-sp { display: none !important; }
+          .lp-hero-r { padding: 90px 20px 60px !important; }
+          .lp-url-form-r { flex-direction: column !important; }
+          .lp-stats-r { gap: 24px !important; flex-wrap: wrap; }
+          .lp-how-r { padding: 60px 20px !important; }
+          .lp-steps-r { grid-template-columns: 1fr !important; }
+          .lp-demo-r { grid-template-columns: 1fr !important; }
+          .lp-demo-left-r { padding: 36px 24px !important; }
+          .lp-demo-right-r { padding: 36px 24px !important; }
+          .lp-features-r { padding: 60px 20px !important; }
+          .lp-features-grid-r { grid-template-columns: 1fr 1fr !important; margin-top: 40px !important; }
+          .lp-cta-r { padding: 80px 20px !important; }
+          .lp-footer-r { flex-direction: column !important; gap: 12px !important; text-align: center; padding: 24px 20px !important; }
+        }
+        @media (max-width: 480px) {
+          .lp-features-grid-r { grid-template-columns: 1fr !important; }
+        }
       `}</style>
       <div className="lp-wrap">
         {/* NAV */}
-        <nav style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 48px", borderBottom: "1px solid var(--lp-border)", backdropFilter: "blur(16px)", background: "rgba(10,10,15,0.7)" }}>
+        <nav className="lp-nav-r" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 48px", borderBottom: "1px solid var(--lp-border)", backdropFilter: "blur(16px)", background: "rgba(10,10,15,0.7)" }}>
           <div className="lp-syne" style={{ fontWeight: 800, fontSize: "1.3rem", letterSpacing: "-0.02em" }}>
             web<span style={{ color: "var(--lp-accent)" }}>quizize</span>
           </div>
           <ul style={{ listStyle: "none", display: "flex", gap: 36, margin: 0, padding: 0, alignItems: "center" }}>
-            <li><a href="#how" style={{ color: "var(--lp-muted)", fontSize: "0.85rem", letterSpacing: "0.04em" }}>使い方</a></li>
-            <li><a href="#features" style={{ color: "var(--lp-muted)", fontSize: "0.85rem", letterSpacing: "0.04em" }}>機能</a></li>
+            <li className="lp-hide-sp"><a href="#how" style={{ color: "var(--lp-muted)", fontSize: "0.85rem", letterSpacing: "0.04em" }}>使い方</a></li>
+            <li className="lp-hide-sp"><a href="#features" style={{ color: "var(--lp-muted)", fontSize: "0.85rem", letterSpacing: "0.04em" }}>機能</a></li>
             <li>
               {session ? (
                 <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -124,7 +144,7 @@ function LandingPage() {
         </nav>
 
         {/* HERO */}
-        <section style={{ minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "120px 48px 80px", position: "relative", overflow: "hidden" }}>
+        <section className="lp-hero-r" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "120px 48px 80px", position: "relative", overflow: "hidden" }}>
           <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)", backgroundSize: "80px 80px", WebkitMaskImage: "radial-gradient(ellipse 80% 60% at 50% 50%, black 30%, transparent 80%)", maskImage: "radial-gradient(ellipse 80% 60% at 50% 50%, black 30%, transparent 80%)" }} />
           <div style={{ position: "absolute", width: 600, height: 600, borderRadius: "50%", background: "radial-gradient(circle, rgba(200,255,0,0.08) 0%, transparent 70%)", top: "50%", left: "50%", transform: "translate(-50%, -50%)", pointerEvents: "none" }} />
           <div className="lp-anim-0" style={{ fontSize: "0.72rem", letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--lp-accent)", marginBottom: 24, display: "flex", alignItems: "center", gap: 10 }}>
@@ -138,7 +158,7 @@ function LandingPage() {
           <p className="lp-anim-2" style={{ marginTop: 32, fontSize: "1.05rem", color: "var(--lp-muted)", maxWidth: 480, lineHeight: 1.8 }}>
             読んだ記事、調べたページ。そのURLを貼り付けるだけで、AIが自動で穴埋めクイズを生成します。読むより、解く。
           </p>
-          <div className="lp-anim-3" style={{ marginTop: 52, display: "flex", alignItems: "stretch", maxWidth: 680 }}>
+          <div className="lp-anim-3 lp-url-form-r" style={{ marginTop: 52, display: "flex", alignItems: "stretch", maxWidth: 680 }}>
             <input
               type="text"
               value={url}
@@ -151,7 +171,7 @@ function LandingPage() {
               クイズ生成 →
             </button>
           </div>
-          <div className="lp-anim-4" style={{ marginTop: 48, display: "flex", gap: 48 }}>
+          <div className="lp-anim-4 lp-stats-r" style={{ marginTop: 48, display: "flex", gap: 48 }}>
             {[["3秒", "で生成完了"], ["12+", "対応サイト形式"], ["98%", "ユーザー満足度"]].map(([num, label]) => (
               <div key={label}>
                 <div className="lp-syne" style={{ fontSize: "2rem", fontWeight: 800 }}>{num}</div>
@@ -162,12 +182,12 @@ function LandingPage() {
         </section>
 
         {/* HOW IT WORKS */}
-        <section id="how" style={{ padding: "120px 48px" }}>
+        <section id="how" className="lp-how-r" style={{ padding: "120px 48px" }}>
           <div style={{ fontSize: "0.7rem", letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--lp-accent)", marginBottom: 16 }}>How It Works</div>
           <h2 ref={addReveal} className="lp-syne lp-reveal" style={{ fontSize: "clamp(2rem, 4vw, 3.2rem)", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1, marginBottom: 64 }}>
             たった3ステップで<br />学習が変わる
           </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 2 }}>
+          <div className="lp-steps-r" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 2 }}>
             {[
               { num: "01", title: "URLをコピペ", desc: "ニュース、Wikipedia、技術ブログ、論文——どんなWebページでもOK。URLをフォームに貼り付けるだけ。" },
               { num: "02", title: "AIが自動生成", desc: "ページ内容をAIが解析し、重要語句を抽出。文脈を理解した、質の高い穴埋めクイズを自動で作成します。" },
@@ -183,8 +203,8 @@ function LandingPage() {
         </section>
 
         {/* DEMO */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3, background: "var(--lp-surface)" }}>
-          <div ref={addReveal} className="lp-reveal" style={{ background: "var(--lp-bg)", padding: "64px 56px" }}>
+        <div className="lp-demo-r" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3, background: "var(--lp-surface)" }}>
+          <div ref={addReveal} className="lp-reveal lp-demo-left-r" style={{ background: "var(--lp-bg)", padding: "64px 56px" }}>
             <div style={{ fontSize: "0.7rem", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--lp-accent3)", marginBottom: 8 }}>Input — 元記事</div>
             <div className="lp-syne" style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: 28 }}>Webページのテキスト</div>
             <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--lp-border)", padding: 28, fontSize: "0.83rem", lineHeight: 2, color: "var(--lp-muted)" }}>
@@ -192,7 +212,7 @@ function LandingPage() {
               日本には<mark style={{ background: "rgba(200,255,0,0.18)", color: "var(--lp-accent)", padding: "1px 4px" }}>春・夏・秋・冬</mark>の四季があり、それぞれの季節に独自の文化や行事が根付いています。<mark style={{ background: "rgba(200,255,0,0.18)", color: "var(--lp-accent)", padding: "1px 4px" }}>桜</mark>は春の象徴として、多くの人々に愛され、花見の習慣は平安時代から続くとされています。
             </div>
           </div>
-          <div ref={addReveal} className="lp-reveal lp-d1" style={{ background: "var(--lp-surface2)", padding: "64px 56px", display: "flex", flexDirection: "column" }}>
+          <div ref={addReveal} className="lp-reveal lp-d1 lp-demo-right-r" style={{ background: "var(--lp-surface2)", padding: "64px 56px", display: "flex", flexDirection: "column" }}>
             <div style={{ fontSize: "0.7rem", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--lp-accent2)", marginBottom: 8 }}>Output — 生成クイズ</div>
             <div className="lp-syne" style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: 28 }}>穴埋めクイズ</div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
@@ -218,10 +238,10 @@ function LandingPage() {
         </div>
 
         {/* FEATURES */}
-        <section id="features" style={{ padding: "120px 48px", background: "var(--lp-bg)" }}>
+        <section id="features" className="lp-features-r" style={{ padding: "120px 48px", background: "var(--lp-bg)" }}>
           <div style={{ fontSize: "0.7rem", letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--lp-accent)", marginBottom: 16 }}>Features</div>
           <h2 ref={addReveal} className="lp-syne lp-reveal" style={{ fontSize: "clamp(2rem, 4vw, 3.2rem)", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1 }}>学習を加速させる機能</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 2, marginTop: 64 }}>
+            <div className="lp-features-grid-r" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 2, marginTop: 64 }}>
             {[
               { icon: "🧠", title: "文脈理解AI", desc: "単語の頻度ではなく、文脈上の重要度を判定してキーワードを抽出します。" },
               { icon: "⚡", title: "高速生成", desc: "URLを送信してから数秒でクイズが完成。待ち時間なく学習を始められます。" },
@@ -240,7 +260,7 @@ function LandingPage() {
         </section>
 
         {/* CTA */}
-        <section style={{ padding: "140px 48px", textAlign: "center", position: "relative", overflow: "hidden", background: "var(--lp-surface)" }}>
+        <section className="lp-cta-r" style={{ padding: "140px 48px", textAlign: "center", position: "relative", overflow: "hidden", background: "var(--lp-surface)" }}>
           <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 60% 80% at 50% 50%, rgba(200,255,0,0.05) 0%, transparent 70%)", pointerEvents: "none" }} />
           <h2 ref={addReveal} className="lp-syne lp-reveal" style={{ fontSize: "clamp(2.5rem, 6vw, 5rem)", fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1.05, marginBottom: 20 }}>
             さあ、<em style={{ color: "var(--lp-accent)", fontStyle: "normal" }}>解いて</em>みよう
@@ -252,7 +272,7 @@ function LandingPage() {
         </section>
 
         {/* FOOTER */}
-        <footer style={{ padding: "40px 48px", borderTop: "1px solid var(--lp-border)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--lp-bg)" }}>
+        <footer className="lp-footer-r" style={{ padding: "40px 48px", borderTop: "1px solid var(--lp-border)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--lp-bg)" }}>
           <div className="lp-syne" style={{ fontWeight: 800, fontSize: "1rem", letterSpacing: "-0.02em" }}>web<span style={{ color: "var(--lp-accent)" }}>quizize</span></div>
           <p style={{ fontSize: "0.78rem", color: "var(--lp-muted)", margin: 0 }}>© 2026 Web Quizize. AIで学習をもっと楽しく。</p>
         </footer>
