@@ -104,8 +104,18 @@ function ResultPage() {
         fontFamily: "'Noto Sans JP', sans-serif",
       }}
     >
+      <style>{`
+        .result-nav { padding: 16px 48px; }
+        .result-actions { display: flex; gap: 12px; justify-content: center; margin-bottom: 48px; }
+        @media (max-width: 768px) {
+          .result-nav { padding: 12px 16px !important; }
+          .result-actions { flex-direction: column !important; align-items: center; }
+          .result-actions button { width: 100%; max-width: 320px; }
+        }
+      `}</style>
       {/* ヘッダーナビ */}
       <nav
+        className="result-nav"
         style={{
           borderBottom: "1px solid rgba(255,255,255,0.07)",
           background: "rgba(10,10,15,0.9)",
@@ -238,6 +248,7 @@ function ResultPage() {
 
         {/* アクションボタン */}
         <div
+          className="result-actions"
           style={{
             display: "flex",
             gap: 12,

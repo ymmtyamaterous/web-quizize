@@ -182,6 +182,7 @@ function QuizPage() {
     >
       {/* ヘッダーナビ */}
       <nav
+        className="quiz-nav"
         style={{
           borderBottom: "1px solid rgba(255,255,255,0.07)",
           background: "rgba(10,10,15,0.9)",
@@ -207,7 +208,7 @@ function QuizPage() {
         >
           web<span style={{ color: "#c8ff00" }}>quizize</span>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, maxWidth: 320, overflow: "hidden" }}>
+        <div className="quiz-nav-right" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, maxWidth: 320, overflow: "hidden" }}>
           <span style={{ fontSize: "0.85rem", color: "#6b6b80", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}>
             {quiz.sourceTitle ?? quiz.sourceUrl}
           </span>
@@ -332,6 +333,7 @@ function QuizPage() {
 
         {/* 選択肢グリッド */}
         <div
+          className="quiz-choices-grid"
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",

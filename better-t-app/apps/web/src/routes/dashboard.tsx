@@ -480,8 +480,21 @@ function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-[#f0f0f5]" style={{ fontFamily: "'Noto Sans JP', sans-serif" }}>
+      <style>{`
+        .dash-nav { padding: 16px 48px; }
+        .dash-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; margin-bottom: 40px; }
+        .dash-gen-box { padding: 36px 40px; }
+        @media (max-width: 1024px) {
+          .dash-stats { grid-template-columns: repeat(3, 1fr) !important; }
+        }
+        @media (max-width: 768px) {
+          .dash-nav { padding: 12px 16px !important; }
+          .dash-stats { grid-template-columns: repeat(2, 1fr) !important; }
+          .dash-gen-box { padding: 24px 16px !important; }
+        }
+      `}</style>
       {/* NAV */}
-      <nav style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(16px)", background: "rgba(10,10,15,0.9)", position: "sticky", top: 0, zIndex: 50, padding: "16px 48px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <nav className="dash-nav" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(16px)", background: "rgba(10,10,15,0.9)", position: "sticky", top: 0, zIndex: 50, padding: "16px 48px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ fontFamily: "Syne, sans-serif", fontWeight: 800, fontSize: "1.2rem", letterSpacing: "-0.02em", cursor: "pointer" }} onClick={() => navigate({ to: "/" })}>
           web<span style={{ color: "#c8ff00" }}>quizize</span>
         </div>
@@ -499,7 +512,7 @@ function DashboardPage() {
 
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "48px 24px" }}>
         {/* URL INPUT */}
-        <div style={{ background: "#111118", border: "1px solid rgba(255,255,255,0.07)", padding: "36px 40px", marginBottom: 40 }}>
+        <div className="dash-gen-box" style={{ background: "#111118", border: "1px solid rgba(255,255,255,0.07)", padding: "36px 40px", marginBottom: 40 }}>
           <h2 style={{ fontFamily: "Syne, sans-serif", fontWeight: 800, fontSize: "1.4rem", marginBottom: 24, letterSpacing: "-0.02em" }}>
             クイズを生成する
           </h2>
@@ -566,7 +579,7 @@ function DashboardPage() {
 
         {/* STATS */}
         {statsQuery.data && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 2, marginBottom: 40 }}>
+          <div className="dash-stats" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 2, marginBottom: 40 }}>
             {[
               { icon: <BookOpen size={18} />, label: "生成クイズ数", value: `${statsQuery.data.totalQuizzesGenerated}件`, color: "#c8ff00" },
               { icon: <Target size={18} />, label: "挑戦回数", value: `${statsQuery.data.totalAttempts}回`, color: "#c8ff00" },
