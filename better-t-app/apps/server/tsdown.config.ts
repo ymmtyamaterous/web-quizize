@@ -5,5 +5,8 @@ export default defineConfig({
   format: "esm",
   outDir: "./dist",
   clean: true,
-  noExternal: [/@better-t-app\/.*/, /^dotenv/],
+  // node_modules のパッケージをすべてバンドル対象にする
+  // ネイティブ binary を持つ libsql 関連のみ external として残す
+  noExternal: [/.*/],
+  external: ["libsql", /^@libsql\//, /^@neon-rs\//, "detect-libc"],
 });
