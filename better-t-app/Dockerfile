@@ -60,7 +60,8 @@ COPY --from=builder /app/apps/server/dist ./server
 # MIGRATIONS_FOLDER=/app/migrations と対応する場所に配置する
 COPY --from=builder /app/packages/db/src/migrations ./migrations
 # シードスクリプト（バンドル済み）
-COPY --from=builder /app/packages/db/dist/seed.mjs ./seed/seed.mjs
+# 現状 seed データがないためコメントアウト
+# COPY --from=builder /app/packages/db/dist/seed.mjs ./seed/seed.mjs
 # libsql JS ラッパー + linux-x64-gnu native binary（その他の依存は tsdown バンドルに包含済み）
 COPY --from=builder /app/node_modules/libsql ./node_modules/libsql
 COPY --from=builder /app/node_modules/@libsql/linux-x64-gnu ./node_modules/@libsql/linux-x64-gnu
