@@ -1,12 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import SignInForm from "@/components/sign-in-form";
+import SignUpForm from "@/components/sign-up-form";
 
-export const Route = createFileRoute("/login")({
-  component: LoginPage,
+export const Route = createFileRoute("/signup")({
+  component: SignUpPage,
 });
 
-function LoginPage() {
+function SignUpPage() {
   const navigate = useNavigate();
   return (
     <div
@@ -27,7 +27,7 @@ function LoginPage() {
         style={{
           position: "absolute",
           top: "-20%",
-          right: "-10%",
+          left: "-10%",
           width: 480,
           height: 480,
           borderRadius: "50%",
@@ -39,11 +39,11 @@ function LoginPage() {
         style={{
           position: "absolute",
           bottom: "-20%",
-          left: "-10%",
+          right: "-10%",
           width: 360,
           height: 360,
           borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(0,229,255,0.04) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(255,77,109,0.04) 0%, transparent 70%)",
           pointerEvents: "none",
         }}
       />
@@ -78,7 +78,7 @@ function LoginPage() {
             padding: "40px 36px",
           }}
         >
-          <SignInForm onSwitchToSignUp={() => navigate({ to: "/signup" })} />
+          <SignUpForm onSwitchToSignIn={() => navigate({ to: "/login" })} />
         </div>
 
         {/* 切り替えリンク */}
@@ -90,10 +90,10 @@ function LoginPage() {
             color: "#6b6b80",
           }}
         >
-          アカウントをお持ちでない方は{" "}
+          すでにアカウントをお持ちの方は{" "}
           <button
             type="button"
-            onClick={() => navigate({ to: "/signup" })}
+            onClick={() => navigate({ to: "/login" })}
             style={{
               background: "none",
               border: "none",
@@ -105,7 +105,7 @@ function LoginPage() {
               fontFamily: "Syne, sans-serif",
             }}
           >
-            新規登録 →
+            ← ログイン
           </button>
         </p>
       </div>

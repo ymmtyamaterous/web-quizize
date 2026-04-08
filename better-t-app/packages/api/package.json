@@ -9,7 +9,9 @@
       "default": "./src/*.ts"
     }
   },
-  "scripts": {},
+  "scripts": {
+    "test": "bun test"
+  },
   "dependencies": {
     "@better-t-app/auth": "workspace:*",
     "@better-t-app/db": "workspace:*",
@@ -18,7 +20,10 @@
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",
+    "cheerio": "^1.2.0",
     "dotenv": "catalog:",
+    "drizzle-orm": "^0.45.1",
+    "openai": "^6.33.0",
     "zod": "catalog:"
   },
   "devDependencies": {

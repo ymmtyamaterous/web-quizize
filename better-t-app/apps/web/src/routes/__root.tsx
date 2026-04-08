@@ -8,7 +8,6 @@ import { HeadContent, Outlet, createRootRouteWithContext } from "@tanstack/react
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { useState } from "react";
 
-import Header from "@/components/header";
 import { ThemeProvider } from "@/components/theme-provider";
 import { link, orpc } from "@/utils/orpc";
 
@@ -23,18 +22,15 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   component: RootComponent,
   head: () => ({
     meta: [
-      {
-        title: "better-t-app",
-      },
-      {
-        name: "description",
-        content: "better-t-app is a web application",
-      },
+      { title: "Web Quizize" },
+      { name: "description", content: "URLを貼るだけでAIがクイズを自動生成。読むより、解く。" },
     ],
     links: [
+      { rel: "icon", href: "/favicon.ico" },
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
       {
-        rel: "icon",
-        href: "/favicon.ico",
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Noto+Sans+JP:wght@300;400;700&display=swap",
       },
     ],
   }),
@@ -53,10 +49,7 @@ function RootComponent() {
         disableTransitionOnChange
         storageKey="vite-ui-theme"
       >
-        <div className="grid grid-rows-[auto_1fr] h-svh">
-          <Header />
-          <Outlet />
-        </div>
+        <Outlet />
         <Toaster richColors />
       </ThemeProvider>
       <TanStackRouterDevtools position="bottom-left" />
@@ -64,3 +57,5 @@ function RootComponent() {
     </>
   );
 }
+
+

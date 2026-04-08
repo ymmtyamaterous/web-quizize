@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web Quizze — URLを貼るだけ、穴埋めクイズが生まれる</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Noto+Sans+JP:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a26;
+    --accent: #c8ff00;
+    --accent2: #ff4d6d;
+    --accent3: #00e5ff;
+    --text: #f0f0f5;
+    --muted: #6b6b80;
+    --border: rgba(255,255,255,0.07);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-weight: 300;
+    overflow-x: hidden;
+  }
+
+  /* NOISE TEXTURE */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.4;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 48px;
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(16px);
+    background: rgba(10,10,15,0.7);
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.3rem;
+    letter-spacing: -0.02em;
+  }
+  .logo span { color: var(--accent); }
+
+  nav ul { list-style: none; display: flex; gap: 36px; }
+  nav a {
+    text-decoration: none;
+    color: var(--muted);
+    font-size: 0.85rem;
+    letter-spacing: 0.04em;
+    transition: color 0.2s;
+  }
+  nav a:hover { color: var(--text); }
+
+  .nav-cta {
+    background: var(--accent);
+    color: var(--bg) !important;
+    padding: 8px 20px;
+    border-radius: 2px;
+    font-weight: 700;
+    font-size: 0.8rem !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase;
+    transition: opacity 0.2s !important;
+  }
+  .nav-cta:hover { opacity: 0.85; color: var(--bg) !important; }
+
+  /* HERO */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 120px 48px 80px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 80px 80px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 30%, transparent 80%);
+  }
+
+  .hero-glow {
+    position: absolute;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(200,255,0,0.08) 0%, transparent 70%);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  .hero-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: fadeUp 0.6s ease both;
+  }
+  .hero-label::before {
+    content: '';
+    display: block;
+    width: 32px; height: 1px;
+    background: var(--accent);
+  }
+
+  .hero h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(3.2rem, 8vw, 7rem);
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -0.04em;
+    max-width: 900px;
+    animation: fadeUp 0.6s 0.1s ease both;
+  }
+
+  .hero h1 em {
+    font-style: normal;
+    color: var(--accent);
+    position: relative;
+  }
+
+  .hero-sub {
+    margin-top: 32px;
+    font-size: 1.05rem;
+    color: var(--muted);
+    max-width: 480px;
+    line-height: 1.8;
+    animation: fadeUp 0.6s 0.2s ease both;
+  }
+
+  /* URL INPUT */
+  .url-box {
+    margin-top: 52px;
+    display: flex;
+    align-items: stretch;
+    max-width: 680px;
+    position: relative;
+    animation: fadeUp 0.6s 0.3s ease both;
+  }
+
+  .url-input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-right: none;
+    color: var(--text);
+    font-size: 0.95rem;
+    font-family: 'Noto Sans JP', monospace;
+    padding: 18px 22px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .url-input::placeholder { color: var(--muted); }
+  .url-input:focus { border-color: var(--accent); }
+
+  .url-btn {
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    padding: 18px 32px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.9rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    white-space: nowrap;
+  }
+  .url-btn:hover { opacity: 0.85; }
+
+  .hero-stats {
+    margin-top: 48px;
+    display: flex;
+    gap: 48px;
+    animation: fadeUp 0.6s 0.4s ease both;
+  }
+
+  .stat-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--text);
+  }
+  .stat-label { font-size: 0.75rem; color: var(--muted); letter-spacing: 0.05em; margin-top: 2px; }
+
+  /* HOW IT WORKS */
+  .section {
+    padding: 120px 48px;
+    position: relative;
+  }
+
+  .section-tag {
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+
+  .section h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2rem, 4vw, 3.2rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 64px;
+  }
+
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+  }
+
+  .step {
+    background: var(--surface);
+    padding: 48px 40px;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.3s;
+  }
+  .step:hover { background: var(--surface2); }
+
+  .step::before {
+    content: attr(data-num);
+    position: absolute;
+    top: 24px; right: 32px;
+    font-family: 'Syne', sans-serif;
+    font-size: 5rem;
+    font-weight: 800;
+    color: var(--border);
+    line-height: 1;
+    transition: color 0.3s;
+  }
+  .step:hover::before { color: rgba(200,255,0,0.07); }
+
+  .step-icon {
+    width: 48px; height: 48px;
+    margin-bottom: 28px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .step h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+
+  .step p {
+    font-size: 0.88rem;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
+  /* DEMO SECTION */
+  .demo-section {
+    padding: 80px 48px 120px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px;
+    background: var(--surface);
+  }
+
+  .demo-left {
+    background: var(--bg);
+    padding: 64px 56px;
+  }
+
+  .demo-right {
+    background: var(--surface2);
+    padding: 64px 56px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .demo-tag {
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .input-tag { color: var(--accent3); }
+  .output-tag { color: var(--accent2); }
+
+  .demo-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 28px;
+  }
+
+  /* Article mockup */
+  .article-mock {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    padding: 28px;
+    font-size: 0.83rem;
+    line-height: 2;
+    color: var(--muted);
+  }
+  .article-mock .h { font-size: 1rem; color: var(--text); font-weight: 700; margin-bottom: 10px; font-family: 'Syne', sans-serif; }
+  .article-mock mark {
+    background: rgba(200,255,0,0.18);
+    color: var(--accent);
+    padding: 1px 4px;
+    border-radius: 2px;
+  }
+
+  /* Quiz mockup */
+  .quiz-mock {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .quiz-progress {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .progress-bar {
+    flex: 1; height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    width: 40%;
+    height: 100%;
+    background: var(--accent2);
+  }
+  .progress-text { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+
+  .quiz-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 28px;
+  }
+
+  .quiz-q {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-size: 0.68rem;
+  }
+
+  .quiz-sentence {
+    font-size: 1rem;
+    line-height: 1.9;
+    color: var(--text);
+    margin-bottom: 24px;
+  }
+
+  .blank {
+    display: inline-block;
+    width: 90px;
+    height: 26px;
+    background: rgba(255,77,109,0.12);
+    border-bottom: 2px solid var(--accent2);
+    vertical-align: middle;
+    margin: 0 4px;
+    position: relative;
+  }
+
+  .choices {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .choice {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    padding: 10px 16px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .choice:hover { border-color: var(--accent2); color: var(--accent2); }
+  .choice.correct { border-color: var(--accent); color: var(--accent); background: rgba(200,255,0,0.07); }
+
+  /* FEATURES */
+  .features {
+    padding: 120px 48px;
+    background: var(--bg);
+  }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2px;
+    margin-top: 64px;
+  }
+
+  .feature {
+    padding: 36px 32px;
+    background: var(--surface);
+    border-top: 2px solid transparent;
+    transition: all 0.25s;
+  }
+  .feature:hover { border-top-color: var(--accent); background: var(--surface2); }
+
+  .feature-icon { font-size: 1.6rem; margin-bottom: 20px; }
+  .feature h4 {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .feature p { font-size: 0.82rem; color: var(--muted); line-height: 1.7; }
+
+  /* CTA */
+  .cta-section {
+    padding: 140px 48px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  .cta-section::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 60% 80% at 50% 50%, rgba(200,255,0,0.05) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .cta-section h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2.5rem, 6vw, 5rem);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1.05;
+    margin-bottom: 20px;
+  }
+
+  .cta-section p { color: var(--muted); margin-bottom: 48px; font-size: 1rem; }
+
+  .cta-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--accent);
+    color: var(--bg);
+    padding: 18px 44px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-decoration: none;
+    transition: opacity 0.2s;
+  }
+  .cta-btn:hover { opacity: 0.85; }
+  .cta-btn svg { transition: transform 0.2s; }
+  .cta-btn:hover svg { transform: translateX(4px); }
+
+  /* FOOTER */
+  footer {
+    padding: 40px 48px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg);
+  }
+  footer .logo { font-size: 1rem; }
+  footer p { font-size: 0.78rem; color: var(--muted); }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Intersection observer reveals */
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .reveal.visible { opacity: 1; transform: none; }
+  .reveal-delay-1 { transition-delay: 0.1s; }
+  .reveal-delay-2 { transition-delay: 0.2s; }
+  .reveal-delay-3 { transition-delay: 0.3s; }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">web<span>quizze</span></div>
+  <ul>
+    <li><a href="#">使い方</a></li>
+    <li><a href="#">機能</a></li>
+    <li><a href="#">料金</a></li>
+    <li><a href="#" class="nav-cta">無料で試す</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-glow"></div>
+
+  <div class="hero-label">AI-Powered Learning Tool</div>
+
+  <h1>URLを貼るだけで<br><em>クイズに</em>なる</h1>
+
+  <p class="hero-sub">
+    読んだ記事、調べたページ。そのURLを貼り付けるだけで、AIが自動で穴埋めクイズを生成します。読むより、解く。
+  </p>
+
+  <div class="url-box">
+    <input class="url-input" type="text" placeholder="https://例えばこのページのURLを貼り付けて…" />
+    <button class="url-btn">クイズ生成 →</button>
+  </div>
+
+  <div class="hero-stats">
+    <div class="stat">
+      <div class="stat-num">3秒</div>
+      <div class="stat-label">で生成完了</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">12+</div>
+      <div class="stat-label">対応サイト形式</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">98%</div>
+      <div class="stat-label">ユーザー満足度</div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section">
+  <div class="section-tag">How It Works</div>
+  <h2 class="reveal">たった3ステップで<br>学習が変わる</h2>
+
+  <div class="steps">
+    <div class="step reveal reveal-delay-1" data-num="01">
+      <div class="step-icon">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+          <rect x="4" y="6" width="24" height="20" rx="1" stroke="#c8ff00" stroke-width="1.5"/>
+          <path d="M9 11h14M9 16h10M9 21h7" stroke="#c8ff00" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h3>URLをコピペ</h3>
+      <p>ニュース、Wikipedia、技術ブログ、論文——どんなWebページでもOK。URLをフォームに貼り付けるだけ。</p>
+    </div>
+    <div class="step reveal reveal-delay-2" data-num="02">
+      <div class="step-icon">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+          <circle cx="16" cy="16" r="10" stroke="#c8ff00" stroke-width="1.5"/>
+          <path d="M16 10v6l4 2" stroke="#c8ff00" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h3>AIが自動生成</h3>
+      <p>ページ内容をAIが解析し、重要語句を抽出。文脈を理解した、質の高い穴埋めクイズを自動で作成します。</p>
+    </div>
+    <div class="step reveal reveal-delay-3" data-num="03">
+      <div class="step-icon">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+          <path d="M8 16l5 5 11-10" stroke="#c8ff00" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h3>解いて定着</h3>
+      <p>4択形式で直感的に解答。正解・不正解を即時フィードバック。解説付きでしっかり理解できます。</p>
+    </div>
+  </div>
+</section>
+
+<!-- DEMO -->
+<div class="demo-section">
+  <div class="demo-left reveal">
+    <div class="demo-tag input-tag">Input — 元記事</div>
+    <div class="demo-label">Webページのテキスト</div>
+    <div class="article-mock">
+      <div class="h">日本の四季と文化</div>
+      日本には<mark>春・夏・秋・冬</mark>の四季があり、それぞれの季節に独自の文化や行事が根付いています。<mark>桜</mark>は春の象徴として、多くの人々に愛され、花見の習慣は平安時代から続くとされています。夏には<mark>お盆</mark>の行事があり、先祖の霊を迎える伝統があります。秋は<mark>紅葉</mark>が美しく、山々が色づく季節です。冬の<mark>正月</mark>は一年で最も重要な行事のひとつとされています。
+    </div>
+  </div>
+  <div class="demo-right reveal reveal-delay-1">
+    <div class="demo-tag output-tag">Output — 生成クイズ</div>
+    <div class="demo-label">穴埋めクイズ</div>
+    <div class="quiz-mock">
+      <div class="quiz-progress">
+        <div class="progress-bar"><div class="progress-fill"></div></div>
+        <div class="progress-text">2 / 5問</div>
+      </div>
+      <div class="quiz-card">
+        <div class="quiz-q">問題 2</div>
+        <div class="quiz-sentence">
+          春の象徴である<span class="blank"></span>は、花見の習慣と共に平安時代から人々に愛されてきました。
+        </div>
+        <div class="choices">
+          <div class="choice">梅</div>
+          <div class="choice correct">桜 ✓</div>
+          <div class="choice">椿</div>
+          <div class="choice">菊</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section class="features">
+  <div class="section-tag">Features</div>
+  <h2 class="reveal">学習を加速させる機能</h2>
+
+  <div class="features-grid">
+    <div class="feature reveal">
+      <div class="feature-icon">🧠</div>
+      <h4>文脈理解AI</h4>
+      <p>単語の頻度ではなく、文脈上の重要度を判定してキーワードを抽出します。</p>
+    </div>
+    <div class="feature reveal reveal-delay-1">
+      <div class="feature-icon">⚡</div>
+      <h4>3秒生成</h4>
+      <p>URLを送信してから約3秒でクイズが完成。待ち時間なく学習を始められます。</p>
+    </div>
+    <div class="feature reveal reveal-delay-2">
+      <div class="feature-icon">🎯</div>
+      <h4>難易度調整</h4>
+      <p>初級・中級・上級の3段階。学習レベルに合わせてクイズの難しさを変えられます。</p>
+    </div>
+    <div class="feature reveal reveal-delay-3">
+      <div class="feature-icon">📊</div>
+      <h4>学習記録</h4>
+      <p>正答率・学習時間・苦手ジャンルをトラッキング。成長が数字で見えます。</p>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <h2 class="reveal">さあ、<em style="color:var(--accent);font-style:normal">解いて</em>みよう</h2>
+  <p class="reveal reveal-delay-1">クレジットカード不要。今すぐ無料で使えます。</p>
+  <a href="#" class="cta-btn reveal reveal-delay-2">
+    無料でクイズを作る
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <path d="M3 9h12M10 4l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </a>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="logo">web<span style="color:var(--accent)">quizze</span></div>
+  <p>© 2025 Web Quizze. AIで学習をもっと楽しく。</p>
+</footer>
+
+<script>
+  // Intersection Observer for scroll reveals
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+  // URL input focus effect
+  const input = document.querySelector('.url-input');
+  const btn = document.querySelector('.url-btn');
+
+  btn.addEventListener('click', () => {
+    if (!input.value.trim()) {
+      input.style.borderColor = '#ff4d6d';
+      input.placeholder = 'URLを入力してください…';
+      setTimeout(() => {
+        input.style.borderColor = '';
+        input.placeholder = 'https://例えばこのページのURLを貼り付けて…';
+      }, 2000);
+    } else {
+      btn.textContent = '生成中…';
+      btn.style.opacity = '0.6';
+      setTimeout(() => {
+        btn.textContent = 'クイズ生成 →';
+        btn.style.opacity = '';
+      }, 1800);
+    }
+  });
+</script>
+</body>
+</html>
