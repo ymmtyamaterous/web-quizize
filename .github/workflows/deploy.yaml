@@ -35,7 +35,7 @@ jobs:
               with:
                 images: ghcr.io/${{ github.repository }}
                 tags: |
-                    1.0.0
+                    1.0.1
                     latest
                 
             - name: Build & Push Image
