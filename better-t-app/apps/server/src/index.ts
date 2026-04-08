@@ -10,6 +10,7 @@ import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { serveStatic } from "hono/bun";
 
 const app = new Hono();
 
@@ -71,8 +72,11 @@ app.use("/*", async (c, next) => {
   await next();
 });
 
-app.get("/", (c) => {
-  return c.text("OK");
-});
+// Vite ビルドのフロントエンド静的ファイルを配信
+// WORKDIR /app に対して ./web = /app/web (Dockerfile で COPY した場所)
+app.use("/*", serveStatic({ root: "./web" }));
+
+// SPA フォールバック: クライアントサイドルーティング対応
+app.get("/*", serveStatic({ path: "./web/index.html" }));
 
 export default app;
