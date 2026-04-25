@@ -24,6 +24,7 @@ export const quiz = sqliteTable(
       .notNull()
       .default(false),
     memo: text("memo").default("").notNull(),
+    language: text("language").notNull().default("ja"),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
       .notNull(),

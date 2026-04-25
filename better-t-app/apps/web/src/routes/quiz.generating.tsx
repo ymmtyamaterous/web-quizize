@@ -11,12 +11,15 @@ export const Route = createFileRoute("/quiz/generating")({
     url: z.string().url(),
     difficulty: z.enum(["easy", "medium", "hard"]).default("medium"),
     questionCount: z.coerce.number().int().min(1).max(10).default(5),
+    autoQuestionCount: z.coerce.boolean().default(false),
+    language: z.enum(["ja", "en", "zh", "ko"]).default("ja"),
+    appendToQuizId: z.string().optional(),
   }),
 });
 
 function GeneratingPage() {
   const navigate = useNavigate();
-  const { url, difficulty, questionCount } = Route.useSearch();
+  const { url, difficulty, questionCount, autoQuestionCount, language, appendToQuizId } = Route.useSearch();
   const called = useRef(false);
 
   const generateMutation = useMutation({
@@ -32,7 +35,7 @@ function GeneratingPage() {
   useEffect(() => {
     if (!called.current) {
       called.current = true;
-      generateMutation.mutate({ url, difficulty, questionCount });
+      generateMutation.mutate({ url, difficulty, questionCount, autoQuestionCount, language, appendToQuizId });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

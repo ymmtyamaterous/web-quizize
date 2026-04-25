@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
+import { MathText } from "@/components/math-text";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/quiz/$quizId/")({
@@ -24,6 +25,7 @@ function QuizPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [answering, setAnswering] = useState(false);
+  const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null);
 
   const quizQuery = useQuery(orpc.quiz.get.queryOptions({ input: { quizId } }));
 
@@ -44,8 +46,12 @@ function QuizPage() {
         correctAnswer: data.correctAnswer,
       });
       setAnswering(false);
+      setSelectedChoiceId(null);
     },
-    onError: () => setAnswering(false),
+    onError: () => {
+      setAnswering(false);
+      setSelectedChoiceId(null);
+    },
   });
 
   const completeMutation = useMutation({
@@ -79,6 +85,7 @@ function QuizPage() {
   const handleSelectChoice = (choiceId: string) => {
     if (!attemptId || !currentQuestion || feedback || answering) return;
     setAnswering(true);
+    setSelectedChoiceId(choiceId);
     answerMutation.mutate({
       attemptId,
       questionId: currentQuestion.id,
@@ -91,6 +98,7 @@ function QuizPage() {
     if (currentIndex < questions.length - 1) {
       setCurrentIndex((prev) => prev + 1);
       setFeedback(null);
+      setSelectedChoiceId(null);
     } else {
       completeMutation.mutate({ attemptId });
     }
@@ -310,7 +318,7 @@ function QuizPage() {
           {currentQuestion.sentence.split("___").map((part, i, arr) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: static rendering
             <span key={i}>
-              {part}
+              <MathText text={part} />
               {i < arr.length - 1 && (
                 <span
                   style={{
@@ -345,14 +353,14 @@ function QuizPage() {
             let borderColor = "rgba(255,255,255,0.07)";
             let bgColor = "#111118";
             let labelColor = "#f0f0f5";
-            let subColor = "rgba(200,255,0,0.1)";
+            const isSelected = selectedChoiceId === choice.id;
+            const isLoadingThis = answering && isSelected;
 
             if (feedback) {
               if (choice.id === feedback.correctChoiceId) {
                 borderColor = "#c8ff00";
                 bgColor = "rgba(200,255,0,0.06)";
                 labelColor = "#c8ff00";
-                subColor = "rgba(200,255,0,0.1)";
               } else if (
                 answerMutation.variables?.selectedChoiceId === choice.id &&
                 !feedback.isCorrect
@@ -360,10 +368,13 @@ function QuizPage() {
                 borderColor = "#ff4d6d";
                 bgColor = "rgba(255,77,109,0.06)";
                 labelColor = "#ff4d6d";
-                subColor = "rgba(255,77,109,0.1)";
               } else {
                 labelColor = "#3d3d4d";
               }
+            } else if (isLoadingThis) {
+              borderColor = "rgba(200,255,0,0.4)";
+              bgColor = "rgba(200,255,0,0.04)";
+              labelColor = "#c8ff00";
             }
 
             return (
@@ -377,16 +388,35 @@ function QuizPage() {
                   border: `1px solid ${borderColor}`,
                   color: labelColor,
                   padding: "16px 20px",
-                  cursor: feedback ? "default" : "pointer",
+                  cursor: feedback || answering ? "default" : "pointer",
                   textAlign: "left",
                   fontFamily: "'Noto Sans JP', sans-serif",
                   fontSize: "0.95rem",
                   lineHeight: 1.6,
                   transition: "all 0.2s ease",
                   outline: "none",
+                  opacity: answering && !isSelected ? 0.45 : 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
                 }}
               >
-                {choice.text}
+                <MathText text={choice.text} />
+                {isLoadingThis && (
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: 16,
+                      height: 16,
+                      border: "2px solid rgba(200,255,0,0.3)",
+                      borderTopColor: "#c8ff00",
+                      borderRadius: "50%",
+                      animation: "spin 0.8s linear infinite",
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
               </button>
             );
           })}
@@ -424,7 +454,7 @@ function QuizPage() {
                   margin: 0,
                 }}
               >
-                {feedback.explanation}
+                <MathText text={feedback.explanation} />
               </p>
             )}
           </div>
@@ -472,7 +502,14 @@ function QuizPage() {
           </p>
         )}
       </div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 768px) {
+          .quiz-nav { padding: 12px 16px !important; }
+          .quiz-nav-right { max-width: 180px !important; }
+          .quiz-choices-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 }
