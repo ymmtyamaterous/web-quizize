@@ -1,0 +1,1 @@
+ALTER TABLE `quiz` ADD `language` text DEFAULT 'ja' NOT NULL;

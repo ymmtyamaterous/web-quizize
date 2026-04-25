@@ -42,7 +42,7 @@ function LandingPage() {
       return;
     }
     if (session) {
-      navigate({ to: "/quiz/generating", search: { url, difficulty: "medium", questionCount: 5 } });
+      navigate({ to: "/quiz/generating", search: { url, difficulty: "medium", questionCount: 5, autoQuestionCount: false } });
     } else {
       navigate({ to: "/login" });
     }

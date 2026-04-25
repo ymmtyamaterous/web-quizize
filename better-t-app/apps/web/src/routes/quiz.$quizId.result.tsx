@@ -2,6 +2,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { z } from "zod";
 
+import { MathText } from "@/components/math-text";
+
 export const Route = createFileRoute("/quiz/$quizId/result")({
   component: ResultPage,
   validateSearch: z.object({
@@ -363,7 +365,7 @@ function ResultPage() {
                   {answer.sentence.split("___").map((part, i, arr) => (
                     // biome-ignore lint/suspicious/noArrayIndexKey: static rendering
                     <span key={i}>
-                      {part}
+                      <MathText text={part} />
                       {i < arr.length - 1 && (
                         <span
                           style={{
@@ -392,7 +394,7 @@ function ResultPage() {
                       margin: 0,
                     }}
                   >
-                    💡 {answer.explanation}
+                    💡 <MathText text={answer.explanation} />
                   </p>
                 )}
               </div>

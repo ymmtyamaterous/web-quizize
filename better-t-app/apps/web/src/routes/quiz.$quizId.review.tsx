@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { MathText } from "@/components/math-text";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/quiz/$quizId/review")({
@@ -987,7 +988,7 @@ function ReviewPage() {
                       {question.sentence.split("___").map((part, i, arr) => (
                         // biome-ignore lint/suspicious/noArrayIndexKey: static rendering
                         <span key={i}>
-                          {part}
+                          <MathText text={part} />
                           {i < arr.length - 1 && (
                             <span
                               style={{
@@ -1047,7 +1048,7 @@ function ReviewPage() {
                               ✓
                             </span>
                           )}
-                          <span>{choice.text}</span>
+                          <span><MathText text={choice.text} /></span>
                         </div>
                       ))}
                     </div>
@@ -1081,7 +1082,7 @@ function ReviewPage() {
                             margin: 0,
                           }}
                         >
-                          {question.explanation}
+                          <MathText text={question.explanation} />
                         </p>
                       </div>
                     )}

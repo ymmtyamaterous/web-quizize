@@ -4,7 +4,7 @@ import { quizAttempt, quizAttemptAnswer } from "@better-t-app/db/schema/quizAtte
 import { env } from "@better-t-app/env/server";
 import { ORPCError } from "@orpc/server";
 import * as cheerio from "cheerio";
-import { and, asc, desc, eq, exists, gte, inArray, isNotNull, like, sql } from "drizzle-orm";
+import { SQL, and, asc, desc, eq, exists, gte, inArray, isNotNull, like, sql } from "drizzle-orm";
 import OpenAI from "openai";
 import { z } from "zod";
 
@@ -182,12 +182,22 @@ async function generateQuestionsWithAi(
   content: string,
   difficulty: "easy" | "medium" | "hard",
   questionCount: number,
+  language = "ja",
 ): Promise<AiQuestion[]> {
   const difficultyGuide = {
     easy: "見出しレベルの重要語句、固有名詞、数値など明確なキーワードを空欄にする。",
     medium: "文脈理解が必要な概念語・動詞・因果関係を空欄にする。",
     hard: "複数の情報を組み合わせた推論が必要なキーワードや専門的な表現を空欄にする。",
   };
+
+  /** 出力言語を AI に指示するためのプロンプト文 */
+  const languageInstruction: Record<string, string> = {
+    ja: "問題文・選択肢・解説はすべて日本語で出力してください。",
+    en: "Output the sentence, choices, and explanation in English.",
+    zh: "请用中文输出题目、选项和解释。",
+    ko: "문제, 선택지, 해설은 모두 한국어로 출력하세요.",
+  };
+  const langNote = languageInstruction[language] ?? languageInstruction.ja;
 
   const openai = new OpenAI({
     apiKey: env.SAKURA_AI_API_KEY,
@@ -212,6 +222,7 @@ async function generateQuestionsWithAi(
 最初の文字は必ず「{」にしてください。
 
 難易度: ${difficultyGuide[difficulty]}
+出力言語: ${langNote}
 
 出力するJSONの構造（この形式を厳守すること）:
 ${exampleJson}
@@ -309,6 +320,14 @@ async function checkAndRecordAiRequest(
 
 // ──── router ─────────────────────────────────────────────
 
+/** テキスト文字数から問題数を自動決定する */
+function calcAutoQuestionCount(textLength: number): number {
+  if (textLength < 2000) return 3;
+  if (textLength < 5000) return 5;
+  if (textLength < 10000) return 8;
+  return 10;
+}
+
 export const quizRouter = {
   generate: protectedProcedure
     .input(
@@ -316,11 +335,14 @@ export const quizRouter = {
         url: z.string().url("有効な URL を入力してください"),
         difficulty: z.enum(["easy", "medium", "hard"]).default("medium"),
         questionCount: z.number().int().min(1).max(10).default(5),
+        autoQuestionCount: z.boolean().default(false),
+        language: z.enum(["ja", "en", "zh", "ko"]).default("ja"),
+        appendToQuizId: z.string().optional(),
       }),
     )
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
-      const { url, difficulty, questionCount } = input;
+      const { url, difficulty, autoQuestionCount, language, appendToQuizId } = input;
 
       // 1日のAIリクエスト上限チェック＆記録
       await checkAndRecordAiRequest(userId, "generate");
@@ -328,10 +350,83 @@ export const quizRouter = {
       // ページ取得
       const { title, text } = await fetchPageContent(url);
 
-      // AIでクイズ生成
-      const questions = await generateQuestionsWithAi(text, difficulty, questionCount);
+      // 問題数の決定
+      const questionCount = autoQuestionCount
+        ? calcAutoQuestionCount(text.length)
+        : input.questionCount;
 
-      // DBに保存
+      // AIでクイズ生成
+      const questions = await generateQuestionsWithAi(text, difficulty, questionCount, language);
+
+      // ──── 既存クイズへの追記モード ────────────────────────────────────────
+      if (appendToQuizId) {
+        const existingQuiz = await db.query.quiz.findFirst({
+          where: and(eq(quiz.id, appendToQuizId), eq(quiz.userId, userId)),
+          with: { questions: { columns: { orderIndex: true } } },
+        });
+
+        if (!existingQuiz) {
+          throw new ORPCError("NOT_FOUND", { message: "追加先のクイズが見つかりません" });
+        }
+
+        // 既存問題の最大 orderIndex を取得
+        const maxOrderIndex = existingQuiz.questions.reduce(
+          (max, q) => Math.max(max, q.orderIndex),
+          -1,
+        );
+
+        for (let i = 0; i < questions.length; i++) {
+          const q = questions[i];
+          if (!q) continue;
+          const questionId = generateId();
+
+          await db.insert(quizQuestion).values({
+            id: questionId,
+            quizId: appendToQuizId,
+            type: "fill_blank",
+            sentence: q.sentence,
+            answer: q.answer,
+            explanation: q.explanation,
+            orderIndex: maxOrderIndex + 1 + i,
+          });
+
+          const shuffledChoices = [...q.choices] as string[];
+          for (let j = shuffledChoices.length - 1; j > 0; j--) {
+            const k = Math.floor(Math.random() * (j + 1));
+            const tmp = shuffledChoices[j];
+            shuffledChoices[j] = shuffledChoices[k] ?? tmp ?? "";
+            shuffledChoices[k] = tmp ?? "";
+          }
+
+          const correctChoice = q.choices[0];
+          for (let ci = 0; ci < shuffledChoices.length; ci++) {
+            const choiceText = shuffledChoices[ci] ?? "";
+            await db.insert(quizChoice).values({
+              id: generateId(),
+              questionId,
+              text: choiceText,
+              isCorrect: choiceText === correctChoice,
+              orderIndex: ci,
+            });
+          }
+        }
+
+        // questionCount を更新
+        const newCount = existingQuiz.questions.length + questions.length;
+        await db
+          .update(quiz)
+          .set({ questionCount: newCount })
+          .where(and(eq(quiz.id, appendToQuizId), eq(quiz.userId, userId)));
+
+        return {
+          quizId: appendToQuizId,
+          status: "ready" as const,
+          title: existingQuiz.sourceTitle,
+          questionCount: newCount,
+        };
+      }
+
+      // ──── 新規クイズ作成 ──────────────────────────────────────────────────
       const quizId = generateId();
 
       await db.insert(quiz).values({
@@ -343,6 +438,7 @@ export const quizRouter = {
         difficulty,
         questionCount: questions.length,
         status: "ready",
+        language,
       });
 
       for (let i = 0; i < questions.length; i++) {
@@ -399,11 +495,13 @@ export const quizRouter = {
         tagId: z.string().optional(),
         isFavorite: z.boolean().optional(),
         difficulty: z.enum(["easy", "medium", "hard"]).optional(),
+        sortBy: z.enum(["createdAt", "title", "bestScore", "attemptCount"]).default("createdAt"),
+        sortOrder: z.enum(["asc", "desc"]).default("desc"),
       }),
     )
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
-      const { page, limit, search, tagId, isFavorite, difficulty } = input;
+      const { page, limit, search, tagId, isFavorite, difficulty, sortBy, sortOrder } = input;
       const offset = (page - 1) * limit;
 
       // フィルタ条件を構築
@@ -433,6 +531,22 @@ export const quizRouter = {
         ? and(whereClause, tagFilterCondition)
         : whereClause;
 
+      // ソート条件を構築
+      const orderExpr: SQL = (() => {
+        const dir = sortOrder === "asc" ? asc : desc;
+        switch (sortBy) {
+          case "title":
+            return dir(quiz.sourceTitle);
+          case "bestScore":
+            return dir(sql`max(${quizAttempt.score})`);
+          case "attemptCount":
+            return dir(sql`count(${quizAttempt.id})`);
+          case "createdAt":
+          default:
+            return dir(quiz.createdAt);
+        }
+      })();
+
       const [quizzes, [countRow]] = await Promise.all([
         db
           .select({
@@ -460,7 +574,7 @@ export const quizRouter = {
           )
           .where(finalWhere)
           .groupBy(quiz.id)
-          .orderBy(desc(quiz.createdAt))
+          .orderBy(orderExpr)
           .limit(limit)
           .offset(offset),
         db

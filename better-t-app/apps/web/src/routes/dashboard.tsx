@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import {
   BookOpen,
+  ArrowDownUp,
   Clock,
   Flame,
   Heart,
@@ -367,13 +368,17 @@ function DashboardPage() {
   const [url, setUrl] = useState("");
   const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
   const [questionCount, setQuestionCount] = useState(5);
+  const [autoQuestionCount, setAutoQuestionCount] = useState(false);
+  const [language, setLanguage] = useState<"ja" | "en" | "zh" | "ko">("ja");
 
   // ── フィルタ状態
   const [search, setSearch] = useState("");
   const [filterTagId, setFilterTagId] = useState<string | undefined>(undefined);
   const [filterFavorite, setFilterFavorite] = useState<boolean | undefined>(undefined);
   const [filterDifficulty, setFilterDifficulty] = useState<"easy" | "medium" | "hard" | undefined>(undefined);
-
+  // ソート状態
+  const [sortBy, setSortBy] = useState<"createdAt" | "title" | "bestScore" | "attemptCount">("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   // ── 削除確認
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
@@ -389,6 +394,8 @@ function DashboardPage() {
         tagId: filterTagId,
         isFavorite: filterFavorite,
         difficulty: filterDifficulty,
+        sortBy,
+        sortOrder,
       },
     }),
   );
@@ -435,7 +442,7 @@ function DashboardPage() {
       toast.error("URLを入力してください");
       return;
     }
-    navigate({ to: "/quiz/generating", search: { url, difficulty, questionCount } });
+    navigate({ to: "/quiz/generating", search: { url, difficulty, questionCount, autoQuestionCount, language } });
   };
 
   const handleToggleFavorite = (q: QuizItem) => {
@@ -535,12 +542,34 @@ function DashboardPage() {
               <option value="hard">上級</option>
             </select>
             <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as "ja" | "en" | "zh" | "ko")}
+              style={{ background: "#1a1a26", border: "1px solid rgba(255,255,255,0.07)", color: "#f0f0f5", padding: "14px 18px", cursor: "pointer", fontFamily: "'Noto Sans JP', sans-serif", fontSize: "0.9rem" }}
+            >
+              <option value="ja">🇯🇵 日本語</option>
+              <option value="en">🇺🇸 English</option>
+              <option value="zh">🇨🇳 中文</option>
+              <option value="ko">🇰🇷 한국어</option>
+            </select>
+            <select
               value={questionCount}
               onChange={(e) => setQuestionCount(Number(e.target.value))}
-              style={{ background: "#1a1a26", border: "1px solid rgba(255,255,255,0.07)", color: "#f0f0f5", padding: "14px 18px", cursor: "pointer", fontFamily: "'Noto Sans JP', sans-serif", fontSize: "0.9rem" }}
+              disabled={autoQuestionCount}
+              style={{ background: "#1a1a26", border: "1px solid rgba(255,255,255,0.07)", color: autoQuestionCount ? "#3d3d4d" : "#f0f0f5", padding: "14px 18px", cursor: autoQuestionCount ? "not-allowed" : "pointer", fontFamily: "'Noto Sans JP', sans-serif", fontSize: "0.9rem", opacity: autoQuestionCount ? 0.45 : 1 }}
             >
               {[3, 5, 7, 10].map((n) => <option key={n} value={n}>{n}問</option>)}
             </select>
+            <label
+              style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none", fontSize: "0.85rem", color: autoQuestionCount ? "#c8ff00" : "#6b6b80", whiteSpace: "nowrap" }}
+            >
+              <input
+                type="checkbox"
+                checked={autoQuestionCount}
+                onChange={(e) => setAutoQuestionCount(e.target.checked)}
+                style={{ accentColor: "#c8ff00", width: 16, height: 16 }}
+              />
+              自動設定
+            </label>
             <button
               type="button"
               onClick={handleGenerate}
@@ -611,6 +640,29 @@ function DashboardPage() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
             <h2 style={{ fontFamily: "Syne, sans-serif", fontWeight: 800, fontSize: "1.1rem", letterSpacing: "-0.01em", color: "#6b6b80", margin: 0 }}>生成済みクイズ</h2>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              {/* ソートセレクター */}
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <ArrowDownUp size={13} style={{ color: "#6b6b80" }} />
+                <select
+                  value={`${sortBy}:${sortOrder}`}
+                  onChange={(e) => {
+                    const [by, order] = e.target.value.split(":") as [typeof sortBy, typeof sortOrder];
+                    setSortBy(by);
+                    setSortOrder(order);
+                  }}
+                  style={{ background: "#111118", border: "1px solid rgba(255,255,255,0.07)", color: "#a0a0b5", padding: "7px 12px", fontSize: "0.82rem", cursor: "pointer" }}
+                >
+                  <option value="createdAt:desc">新着順</option>
+                  <option value="createdAt:asc">古い順</option>
+                  <option value="title:asc">タイトル (A→Z)</option>
+                  <option value="title:desc">タイトル (Z→A)</option>
+                  <option value="bestScore:desc">スコア高い順</option>
+                  <option value="bestScore:asc">スコア低い順</option>
+                  <option value="attemptCount:desc">プレイ回数多い順</option>
+                  <option value="attemptCount:asc">プレイ回数少ない順</option>
+                </select>
+              </div>
+
               {/* テキスト検索 */}
               <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
                 <Search size={14} style={{ position: "absolute", left: 10, color: "#6b6b80", pointerEvents: "none" }} />
@@ -799,6 +851,29 @@ function DashboardPage() {
                         initialMemo={q.memo}
                         onSave={(memo) => handleSaveMemo(q.id, memo)}
                       />
+
+                      {/* 問題を追加 */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate({
+                            to: "/quiz/generating",
+                            search: {
+                              url: q.sourceUrl,
+                              difficulty: q.difficulty,
+                              questionCount: 5,
+                              autoQuestionCount: false,
+                              language: "ja",
+                              appendToQuizId: q.id,
+                            },
+                          })
+                        }
+                        style={{ background: "rgba(0,229,255,0.07)", color: "#00e5ff", border: "1px solid rgba(0,229,255,0.25)", padding: "4px 8px", cursor: "pointer", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: 4, borderRadius: 2 }}
+                        title="同じURLから問題を追加"
+                      >
+                        <Plus size={12} />
+                        問題を追加
+                      </button>
 
                       {/* 確認ボタン */}
                       <button
