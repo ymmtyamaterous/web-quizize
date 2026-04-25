@@ -10,7 +10,7 @@
     "skipLibCheck": true,
     "types": ["vite/client"],
     "rootDirs": ["."],
-    "baseUrl": ".",
+    // "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
       "@better-t-app/ui/*": ["../../packages/ui/src/*"]
